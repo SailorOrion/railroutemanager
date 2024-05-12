@@ -5,16 +5,96 @@ from datetime import timedelta
 from collections import deque, defaultdict
 import curses
 
+class Contract:
+    def __init__(self, contract_id, contract_type):
+        self.cid = contract_id
+        self.ctype = contract_type
+        self.route = []
+        self.trains = {}
+        self.route_complete = False
+
+    def add_train(self, train):
+        self.trains[train.tid] = train
+
+    def del_train(self, train):
+        t = self.trains[train.id]
+        del self.trains[train.id]
+        return t
+
+    def start_of_route(self):
+        if len(self.route) > 0:
+            return self.route[0]
+        return "N/A"
+
+    def end_of_route(self):
+        if len(self.route) > 0:
+            return self.route[-1]
+        return "N/A"
+
+    def check_for_complete_route(self):
+        handled_routes = {}
+        for train_id, train in self.trains.items():
+            tuple_list = tuple(train.locations)
+            if tuple_list in handled_routes:
+                self.route = train.locations
+                self.route_complete = True
+                for train_id, train in self.trains.items():
+                    train.finalize(self.end_of_route())
+                return
+            else:
+                handled_routes[tuple_list] = True
+
+    def update_route(self):
+        longest_route_length = 0
+        longest_route_id = -1
+        for train_id, train in self.trains.items():
+            if train.num_locations() > longest_route_length:
+                longest_route_length = train.num_locations()
+                longest_route_id = train.tid
+
+        self.route = self.trains[longest_route_id].locations
+        self.check_for_complete_route()
+
+    def new_location_for_train(self, tid, location):
+        if tid not in self.trains:
+            self.trains[tid] = Train(tid, location)
+        else:
+            self.trains[tid].new_location(location)
+            self.update_route()
+            if self.route_complete:
+                self.trains[tid].finalize(self.end_of_route())
+
+    def __str__(self):
+        return f"Contract {self.cid}" + str(self.trains)
+
 class Train:
-    def __init__(self, id, location):
-        self.id = id
-        self.location = location
+    def __init__(self, train_id, location):
+        self.tid = train_id
+        self.locations = []
+        self.locations.append(location)
+        self.done = False
 
     def __hash__(self):
-        return hash(self.id)
+        return hash(self.tid)
 
     def __eq__(self, other):
-        return self.id == other.id
+        return self.tid == other.tid
+
+    def new_location(self, location):
+        self.locations.append(location)
+
+    def num_locations(self):
+        return len(self.locations)
+
+    def current_location(self):
+        return self.locations[-1]
+
+    def finalize(self, terminus):
+        if self.current_location() == terminus:
+            self.done = True
+
+    def __repr__(self):
+        return f"{self.tid}: {self.current_location()}({self.num_locations()}: {self.locations})"
 
 class UniqueDeque:
     def __init__(self, maxlen):
@@ -28,6 +108,9 @@ class UniqueDeque:
                 self.items_set.remove(self.deque.pop())
             self.deque.appendleft(item)
             self.items_set.add(item)
+            return True
+        else:
+            return False
 
     def __iter__(self):
         """Make the deque iterable."""
@@ -57,7 +140,7 @@ def parse_log_line(line):
         return (id, location, delay_in_seconds)
     return None
 
-def update_screen(stdscr, delays, early, recent, active_trains, active_train_pos):
+def update_screen(stdscr, delays, early, recent, contracts, active_train_pos):
     #stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
     delay_pad = curses.newpad(1000, max_x // 2 - 2)
@@ -77,12 +160,13 @@ def update_screen(stdscr, delays, early, recent, active_trains, active_train_pos
         recent_pad.addstr(idx, 0, '{:8}: {:12s} at {}'.format(delay, id, location))
 
     idx = 0
-    for contract, trains in sorted(active_trains.items()):
+    for contract_id, contract in sorted(contracts.items()):
         idx += 1
-        contract_pad.addstr(idx, 0, f"{contract}:")
-        for train in trains:
+        #contract_pad.addstr(idx, 0, f"{contract_id}: {len(contract.trains)} from {contract.start_of_route()} to {contract.end_of_route()}: {contract.route_complete}")
+        contract_pad.addstr(idx, 0, f"{contract_id} (to {contract.end_of_route()} (Final: {contract.route_complete}):")
+        for train_id, train in contract.trains.items():
             idx += 1
-            contract_pad.addstr(idx, 4, f"{train.id}: {train.location}")
+            contract_pad.addstr(idx, 4, f"{train_id}: ({train.done}) {train.current_location()}, {train.locations}")
 
     stdscr.addstr(0, max_x // 2, f"Active trains for contract and last seen location: {idx}, {max_y}, {active_train_pos}")
 
@@ -102,7 +186,10 @@ def update_screen(stdscr, delays, early, recent, active_trains, active_train_pos
 def get_contract_id(id):
     match = re.search(r'([A-Za-z]+)(\d{3})', id)
     if match:
-        return match.group(1), match.group(2)
+        if match.group(1) == 'Reg':
+            return match.group(1), match.group(2) + id[6]
+        else:
+            return match.group(1), match.group(2)
 
     raise ValueError
 
@@ -116,8 +203,9 @@ def monitor_log(stdscr, filepath):
     early = {}
     sorted_delays = []
     sorted_early = []
-    active_trains = defaultdict(set)
+    contracts = {}
     recent_delays = UniqueDeque(maxlen = 12)
+    recent_lines = UniqueDeque(maxlen = 200)
     active_train_pos = 0
     page_size = 0
 
@@ -125,19 +213,25 @@ def monitor_log(stdscr, filepath):
         while True:
             line = file.readline()
             if not line:
-                time.sleep(0.01)
+                time.sleep(0.02)
             else:
+                if not recent_lines.appendleft(line):
+                    continue
                 parsed = parse_log_line(line)
                 if parsed:
-                    id, location, delay = parsed
-                    type, contract_id = get_contract_id(id)
-                    active_trains[contract_id].add(Train(id, location))
+                    train_id, location, delay = parsed
+                    contract_type, contract_id = get_contract_id(train_id)
+                    if not contract_id in contracts:
+                        contracts[contract_id] = Contract(contract_id, contract_type)
+
+                    contracts[contract_id].new_location_for_train(train_id, location)
+
                     if delay > 60:
-                        recent_delays.appendleft((id, location, delay))
-                        delays[contract_id] = (id, location, delay)  # Update the existing ID or add a new one
+                        recent_delays.appendleft((train_id, location, delay))
+                        delays[contract_id] = (train_id, location, delay)  # Update the existing ID or add a new one
                         early.pop(contract_id, None)
                     elif delay <= -120:
-                        early[contract_id] = (id, location, delay)
+                        early[contract_id] = (train_id, location, delay)
                         delays.pop(contract_id, None)
                     else:
                         delays.pop(contract_id, None)
@@ -158,7 +252,7 @@ def monitor_log(stdscr, filepath):
             elif ch == curses.KEY_NPAGE:
                 active_train_pos += page_size // 2
 
-            active_train_pos, page_size = update_screen(stdscr, sorted_delays, sorted_early, list(recent_delays), active_trains, active_train_pos)
+            active_train_pos, page_size = update_screen(stdscr, sorted_delays, sorted_early, list(recent_delays), contracts, active_train_pos)
 
 
     finally:
