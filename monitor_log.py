@@ -5,6 +5,8 @@ from datetime import timedelta
 from collections import deque, defaultdict, namedtuple
 import curses
 
+Stop = namedtuple("Stop",["location", "delay"])
+
 class Contract:
     def __init__(self, contract_id, contract_type):
         self.cid = contract_id
