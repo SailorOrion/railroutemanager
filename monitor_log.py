@@ -4,6 +4,7 @@ import re
 from datetime import timedelta
 from collections import deque, defaultdict, namedtuple
 from enum import Enum
+from math import ceil
 import curses
 
 DEBUG_TEXT = False
@@ -56,7 +57,7 @@ class Contract:
             self.w.update_debug(f"{train_id}: {tuple_list}")
             if tuple_list in handled_routes:
                 self.w.update_debug("Route complete!")
-               # self.w.update_status(f"Closing route {self.cid}")
+                #self.w.update_status(f"Closing route {self.cid}")
                 self.route = train.locations()
                 self.route_complete = True
                 for train_id, train in self.trains.items():
@@ -101,7 +102,7 @@ class Contract:
         return [self.del_train(tid) for tid in trains_to_delete]
 
     def print_info(self):
-        return f"{self.cid} {len(self.trains)} trains: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()} (Final: {self.route_complete}):"
+        return f'{"*" if not self.route_complete else " "}{self.cid:>4}: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
 
     def __str__(self):
         return f"Contract {self.cid}" + str(self.trains)
@@ -142,11 +143,11 @@ class Train:
 
     def print_info(self):
         if self.num_locations() == 1:
-            return f"{self.tid}: Appeared at {self.current_location()}, delay {self.current_delay()}"
+            return f"| {self.current_delay():4.0f} | {self.current_location()}->?"
         elif self.num_locations() == 2:
-            return f"{self.tid}: {self.previous_location()}->{self.current_location()}, delay {self.current_delay()}"
+            return f"| {self.current_delay():4.0f} | {self.previous_location()}->{self.current_location()}"
         else:
-            return f"{self.tid}: {self.first_location()}--->{self.previous_location()}->{self.current_location()}, delay {self.current_delay()}"
+            return f"| {self.current_delay():4.0f} | {self.first_location()}--->{self.previous_location()}->{self.current_location()}"
 
 
     def finalize(self, terminus):
@@ -187,12 +188,49 @@ class Pad:
         PAGE_UP   = 2
         PAGE_DOWN = 3
 
+    _lines        = 0
+    _displayfirst = 0
+
     def __init__(self, pad_height, pad_width, description, params):
-        self._pad = curses.newpad(pad_height, pad_width)
         self._desc = description
         self._top, self._left, self._bottom, self._right = params
-        self._lines = 0
-        self._displayfirst = 0
+
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_RED)
+
+        self._pad = curses.newpad(pad_height, pad_width)
+        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
+        self._borderwin.box()
+        self._borderwin.addstr(0, 2, description, curses.A_REVERSE)
+        self._borderwin.refresh()
+
+    def draw_scrollbar(self):
+       # Calculate scrollbar slider properties
+       if self._lines > self.contentheight():
+           scrollbar_height = max(ceil((self.contentheight() / self._lines) * self.contentheight()), 1)
+           scrollbar_pos = int((self._displayfirst / self._lines) * (self.contentheight() - scrollbar_height))
+       else:
+           for y in range(1, self.contentheight()):
+               self._borderwin.addch(y, self.width() - 2, ' ')
+           return 0
+
+       # Draw the scrollbar
+       for y in range(1, self.contentheight()):
+           if scrollbar_pos <= y < scrollbar_pos + scrollbar_height:
+               self._borderwin.addch(y, self.width() - 2, curses.ACS_CKBOARD)
+           else:
+               self._borderwin.addch(y, self.width() - 2, ' ')
+
+       return 1
+
+
+    def draw(self):
+        self._borderwin.box()
+        self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
+        self._borderwin.refresh()
+        d = self.draw_scrollbar()
+        self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2 , self._right - 2 - d)
+
 
     def update_pos(y_pos, x_pos, height, width):
         return #TODO
@@ -213,23 +251,28 @@ class Pad:
                 self._displayfirst += self.height() // 2
             case _:
                 raise ValueError
-        self._displayfirst = max(0, min(self._displayfirst, self._lines - self.height() + 2))
-
-    def draw(self):
-        self._pad.border()
-        self._pad.addstr(0, 2, self._desc, curses.A_REVERSE)
-        self._pad.refresh(self._displayfirst, 1, self._top + 1, self._left, self._bottom, self._right)
+        self._displayfirst = max(0, min(self._displayfirst, self._lines - self.contentheight()))
 
     def prepare(self):
         self._pad.erase()
         self._lines = 0
 
     def addstr(self, y_pos, x_pos, line):
-        self._pad.addstr(y_pos + 1, x_pos + 2, line)
+        self._pad.addstr(y_pos, x_pos, line)
+        self._lines = max(self._lines, y_pos + 1)
+
+    def addcstr(self, y_pos, x_pos, line, color_pair):
+        self._pad.addstr(y_pos, x_pos, line, color_pair)
         self._lines = max(self._lines, y_pos + 1)
 
     def height(self):
         return self._bottom - self._top
+
+    def contentheight(self):
+        return self.height() - 2
+
+    def width(self):
+        return self._right - self._left
 
 class Window:
     PAD_SIZE = 5000
@@ -259,10 +302,10 @@ class Window:
     def get_params(self, row, col, rows, cols):
         if row + rows > self.NUM_ROWS or rows <= 0 or col + cols > self.NUM_COLS or cols <= 0:
             raise ValueError
-        top = self.max_y * row // self.NUM_ROWS + 1
-        bottom = self.max_y * rows // self.NUM_ROWS + top - 2
-        left = self.max_x * col // self.NUM_COLS + 1
-        right = self.max_x * cols // self.NUM_COLS + left - 2
+        top = self.max_y * row // self.NUM_ROWS
+        bottom = self.max_y * rows // self.NUM_ROWS + top
+        left = self.max_x * col // self.NUM_COLS
+        right = self.max_x * cols // self.NUM_COLS + left
         return top, left, bottom, right
 
     def update_status(self, string):
@@ -326,7 +369,14 @@ class Window:
             pad.addstr(idx, 0, contract.print_info())
             idx += 1
             for train_id, train in contract.trains.items():
-                pad.addstr(idx, 4, train.print_info())
+                trainstr = train.print_info()
+                if train.current_delay() >= 120:
+                    pad.addcstr(idx, 4, train_id, curses.color_pair(2))
+                elif train.current_delay() >= 60:
+                    pad.addcstr(idx, 4, train_id, curses.color_pair(1))
+                else:
+                    pad.addstr(idx, 4, train_id)
+                pad.addstr(idx, 13, train.print_info())
                 idx += 1
 
         pad.draw()
@@ -371,6 +421,8 @@ def get_contract_id(id):
 
 def monitor_log(stdscr, filepath, historypath):
     curses.curs_set(0)  # Hide the cursor
+    if curses.has_colors():
+        curses.start_color()
     stdscr.nodelay(True)  # Make getch non-blocking
 
     current_file = open(filepath, "r")
@@ -435,7 +487,7 @@ def monitor_log(stdscr, filepath, historypath):
                 else:
                     tid = parse_bad_platform(line)
                     if tid:
-                        w.update_status("{tid}: Bad platform!")
+                        w.update_status(f"{tid}: Bad platform!")
 
                 if skip_update:
                     continue
@@ -453,7 +505,7 @@ def monitor_log(stdscr, filepath, historypath):
             elif ch == curses.KEY_PPAGE:
                 w.active_contract_pad.update_displaypos(Pad.ScrollMode.PAGE_UP)
             elif ch == curses.KEY_NPAGE:
-                w.active_contract_pad.update_displaypos(Pad.ScrollMode.PAGE_DOWN)
+                w.active_contract_pad.update_displaypos(Pad.ScrollMode.PAGE_DOWN
 
             w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
             w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
@@ -463,7 +515,7 @@ def monitor_log(stdscr, filepath, historypath):
             w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.active_contract_pad)
             w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.inactive_contract_pad)
 
-            w.stdscr.refresh()
+            #w.stdscr.refresh()
     finally:
         current_file.close()
         if history_file is not None:
