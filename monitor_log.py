@@ -11,6 +11,7 @@ DEBUG_TEXT = False
 STATUS_SIZE = 3
 
 Stop = namedtuple("Stop",["location", "delay"])
+Padsize = namedtuple("Padsize",["start_row", "start_column", "rows", "columns"])
 
 class Contract:
     def __init__(self, contract_id, contract_type, window):
@@ -191,17 +192,27 @@ class Pad:
     _lines        = 0
     _displayfirst = 0
 
-    def __init__(self, pad_height, pad_width, description, params):
+    def __init__(self, pad_height, pad_width, description, padsize):
+        self._padsize = padsize
         self._desc = description
-        self._top, self._left, self._bottom, self._right = params
 
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
         curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_RED)
 
         self._pad = curses.newpad(pad_height, pad_width)
+
+    def resize(self, max_y, max_x, num_rows, num_cols):
+        self._top = max_y * self._padsize.start_row // num_rows
+        self._bottom = max_y * self._padsize.rows // num_rows + self._top
+
+        self._left = max_x * self._padsize.start_column // num_cols
+        self._right = max_x * self._padsize.columns // num_cols + self._left
+        self.borderwin()
+
+    def borderwin(self):
         self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
         self._borderwin.box()
-        self._borderwin.addstr(0, 2, description, curses.A_REVERSE)
+        self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
         self._borderwin.refresh()
 
     def draw_scrollbar(self):
@@ -231,13 +242,6 @@ class Pad:
         d = self.draw_scrollbar()
         self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2 , self._right - 2 - d)
 
-
-    def update_pos(y_pos, x_pos, height, width):
-        return #TODO
-        self._top = y_pos
-        self._left = x_pos
-        self._bottom = y_pos + height
-        self._right = x_pos + width
 
     def update_displaypos(self, mode):
         match mode:
@@ -280,6 +284,7 @@ class Window:
     NUM_COLS = 2
     status_messages = UniqueDeque(maxlen = PAD_SIZE)
     debug_messages = UniqueDeque(maxlen = PAD_SIZE)
+    pads = {}
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.max_y, self.max_x = stdscr.getmaxyx()
@@ -287,79 +292,75 @@ class Window:
         full_width = self.max_x
         half_width = self.max_x // 2
 
-        self.status_pad = Pad(self.PAD_SIZE, full_width, "Status", self.get_params(11, 0, 1, 2))
+        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", Padsize(11, 0, 1, 2))
 
-        self.delay_pad = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", self.get_params(0, 0, 4, 1))
-        self.removed_pad = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", self.get_params(4, 0, 3, 1))
-        self.early_pad = Pad(self.PAD_SIZE, half_width, "Early trains:", self.get_params(7, 0, 2, 1))
-        self.recent_pad = Pad(self.PAD_SIZE, half_width, "Recent delays:", self.get_params(9, 0, 2, 1))
+        self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", Padsize(0, 0, 4, 1))
+        self.pads['removed'] = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", Padsize(4, 0, 3, 1))
+        self.pads['early'] = Pad(self.PAD_SIZE, half_width, "Early trains:", Padsize(7, 0, 2, 1))
+        self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", Padsize(9, 0, 2, 1))
 
-        self.active_contract_pad = Pad(self.PAD_SIZE, half_width, "Active trains for contract and last seen location:", self.get_params(0, 1, 7, 1))
-        self.inactive_contract_pad = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", self.get_params(7, 1, 3, 1))
-        self.debug_pad = Pad(self.PAD_SIZE, half_width, "Debug messages", self.get_params(10, 1, 1, 1))
+        self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width, "Active trains for contract and last seen location:", Padsize(0, 1, 7, 1))
+        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", Padsize(7, 1, 3, 1))
+        self.pads['debug'] = Pad(self.PAD_SIZE, half_width, "Debug messages", Padsize(10, 1, 1, 1))
+        self.resize(stdscr)
 
-
-    def get_params(self, row, col, rows, cols):
-        if row + rows > self.NUM_ROWS or rows <= 0 or col + cols > self.NUM_COLS or cols <= 0:
-            raise ValueError
-        top = self.max_y * row // self.NUM_ROWS
-        bottom = self.max_y * rows // self.NUM_ROWS + top
-        left = self.max_x * col // self.NUM_COLS
-        right = self.max_x * cols // self.NUM_COLS + left
-        return top, left, bottom, right
+    def resize(self, stdscr):
+        self.max_y, self.max_x = stdscr.getmaxyx()
+        for padid, pad in self.pads.items():
+            pad.resize(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
 
     def update_status(self, string):
         return
         self.status_messages.appendleft(string)
-        self.status_pad.prepare()
+        self.pads['status'].prepare()
         for idx, line in enumerate(list(self.status_messages)):
-            self.status_pad.addstr(idx, 0, line)
+            self.pads['status'].addstr(idx, 0, line)
 
-        self.status_pad.draw()
+        self.pads['status'].draw()
 
     def update_debug(self, string):
         if not DEBUG_TEXT:
             return
         self.debug_messages.appendleft(string)
-        self.debug_pad.prepare()
+        self.pads['debug'].prepare()
         for idx, line in enumerate(list(self.debug_messages)):
-            self.debug_pad.addstr(idx, 0, line)
+            self.pads['debug'].addstr(idx, 0, line)
 
-        self.debug_pad.draw()
+        self.pads['debug'].draw()
 
     def add_trainstr(self, pad, pos, delay, tid, location):
         pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
 
     def update_delays(self, delays):
-        self.delay_pad.prepare()
+        self.pads['delay'].prepare()
 
         for idx, (tid, location, delay) in enumerate(delays):
-            self.add_trainstr(self.delay_pad, idx, delay, tid, location)
+            self.add_trainstr(self.pads['delay'], idx, delay, tid, location)
 
-        self.delay_pad.draw()
+        self.pads['delay'].draw()
 
     def update_early_trains(self, early):
-        self.early_pad.prepare()
+        self.pads['early'].prepare()
 
         for idx, (tid, location, early) in enumerate(early):
-            self.add_trainstr(self.early_pad, idx, early, tid, location)
+            self.add_trainstr(self.pads['early'], idx, early, tid, location)
 
-        self.early_pad.draw()
+        self.pads['early'].draw()
 
     def update_recent_delays(self, recent):
-        self.recent_pad.prepare()
+        self.pads['recent'].prepare()
 
         for idx, (tid, location, delay) in enumerate(list(recent)):
-            self.add_trainstr(self.recent_pad, idx, delay, tid, location)
+            self.add_trainstr(self.pads['recent'], idx, delay, tid, location)
 
-        self.recent_pad.draw()
+        self.pads['recent'].draw()
 
     def update_recent_departed(self, removed_trains):
-        self.removed_pad.prepare()
+        self.pads['removed'].prepare()
         for idx, (tid, location, delay) in enumerate(removed_trains):
-            self.add_trainstr(self.removed_pad, idx, delay, tid, location)
+            self.add_trainstr(self.pads['removed'], idx, delay, tid, location)
 
-        self.removed_pad.draw()
+        self.pads['removed'].draw()
 
     def update_contracts(self, contracts, pad):
         pad.prepare()
@@ -495,25 +496,27 @@ def monitor_log(stdscr, filepath, historypath):
             if ch == ord('q'):  # Exit loop if 'q' is pressed
                 break
             elif ch == ord('w'):
-                w.active_contract_pad.update_displaypos(Pad.ScrollMode.LINE_UP)
+                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
             elif ch == ord('s'):
-                w.active_contract_pad.update_displaypos(Pad.ScrollMode.LINE_DOWN)
+                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
             elif ch == ord('e'):
-                w.inactive_contract_pad.update_displaypos(Pad.ScrollMode.LINE_UP)
+                w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
             elif ch == ord('d'):
-                w.inactive_contract_pad.update_displaypos(Pad.ScrollMode.LINE_DOWN)
+                w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
             elif ch == curses.KEY_PPAGE:
-                w.active_contract_pad.update_displaypos(Pad.ScrollMode.PAGE_UP)
+                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
             elif ch == curses.KEY_NPAGE:
-                w.active_contract_pad.update_displaypos(Pad.ScrollMode.PAGE_DOWN
+                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_DOWN)
+            elif ch == curses.KEY_RESIZE:
+                w.resize(stdscr)
 
             w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
             w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
             w.update_recent_delays(recent_delays)
             w.update_recent_departed(removed_trains)
 
-            w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.active_contract_pad)
-            w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.inactive_contract_pad)
+            w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+            w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
 
             #w.stdscr.refresh()
     finally:
