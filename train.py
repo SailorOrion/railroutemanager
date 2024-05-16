@@ -1,6 +1,7 @@
 from collections import namedtuple
 
-Stop = namedtuple("Stop",["location", "delay"])
+Stop = namedtuple("Stop", ["location", "delay"])
+
 
 class Train:
     def __init__(self, train_id, location, delay):
@@ -16,7 +17,7 @@ class Train:
         return self.tid == other.tid
 
     def locations(self):
-        return [l.location for l in self._locations]
+        return [L.location for L in self._locations]
 
     def set_route(self, route):
         self._locations = []
@@ -45,10 +46,12 @@ class Train:
         if self.num_locations() == 1:
             return f"| {self.current_delay():4.0f} | {self.current_location()}->?"
         elif self.num_locations() == 2:
-            return f"| {self.current_delay():4.0f} | {self.previous_location()}->{self.current_location()}"
+            return f"| {self.current_delay():4.0f} | \
+                    {self.previous_location()}->{self.current_location()}"
         else:
-            return f"| {self.current_delay():4.0f} | {self.first_location()}--->{self.previous_location()}->{self.current_location()}"
-
+            return f"| {self.current_delay():4.0f} | \
+                    {self.first_location()}---> \
+                    {self.previous_location()}->{self.current_location()}"
 
     def finalize(self, terminus):
         if self.current_location() == terminus:

@@ -1,5 +1,6 @@
 from collections import deque
 
+
 class UniqueDeque:
     def __init__(self, maxlen):
         self.deque = deque(maxlen=maxlen)
@@ -19,5 +20,7 @@ class UniqueDeque:
     def __iter__(self):
         """Make the deque iterable."""
         return iter(self.deque)
+
+
 def __repr__(self):
-        return str(self.deque)
+    return str(self.deque)

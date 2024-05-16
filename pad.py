@@ -1,24 +1,24 @@
 import curses
-import logging
 
 from collections import namedtuple
 
 from enum import Enum
 from math import ceil
 
-Padsize = namedtuple("Padsize",["start_row", "start_column", "rows", "columns"])
+Padsize = namedtuple("Padsize", ["start_row", "start_column", "rows", "columns"])
+
 
 class Pad:
     class ScrollMode(Enum):
-        LINE_UP   = 0
+        LINE_UP = 0
         LINE_DOWN = 1
-        PAGE_UP   = 2
+        PAGE_UP = 2
         PAGE_DOWN = 3
 
-    _lines        = 0
+    _lines = 0
     _displayfirst = 0
 
-    def __init__(self, pad_height, pad_width, description, padsize, color = True):
+    def __init__(self, pad_height, pad_width, description, padsize, color=True):
         self._padsize = padsize
         self._desc = description
 
@@ -43,31 +43,30 @@ class Pad:
         self._borderwin.refresh()
 
     def draw_scrollbar(self):
-       # Calculate scrollbar slider properties
-       if self._lines > self.contentheight():
-           scrollbar_height = max(ceil((self.contentheight() / self._lines) * self.contentheight()), 1)
-           scrollbar_pos = int(self._displayfirst / (self._lines - self.contentheight()) * (self.contentheight() - scrollbar_height))
-       else:
-           for y in range(self.contentheight()):
-               self._borderwin.addch(y + 1, self.width() - 2, ' ')
-           return 0
+        # Calculate scrollbar slider properties
+        if self._lines > self.contentheight():
+            scrollbar_height = max(ceil((self.contentheight() / self._lines) * self.contentheight()), 1)
+            scrollbar_pos = int(self._displayfirst / (self._lines - self.contentheight()) * (self.contentheight() - scrollbar_height))
+        else:
+            for y in range(self.contentheight()):
+                self._borderwin.addch(y + 1, self.width() - 2, ' ')
+            return 0
 
-       # Draw the scrollbar
-       for y in range(self.contentheight()):
-           if scrollbar_pos <= y < scrollbar_pos + scrollbar_height:
-               self._borderwin.addch(y + 1, self.width() - 2, curses.ACS_CKBOARD)
-           else:
-               self._borderwin.addch(y + 1, self.width() - 2, ' ')
+        # Draw the scrollbar
+        for y in range(self.contentheight()):
+            if scrollbar_pos <= y < scrollbar_pos + scrollbar_height:
+                self._borderwin.addch(y + 1, self.width() - 2, curses.ACS_CKBOARD)
+            else:
+                self._borderwin.addch(y + 1, self.width() - 2, ' ')
 
-       return 1
+        return 1
 
     def draw(self):
         self._borderwin.box()
         self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
         self._borderwin.refresh()
         d = self.draw_scrollbar()
-        self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2 , self._right - 3 - d)
-
+        self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)
 
     def update_displaypos(self, mode):
         match mode:

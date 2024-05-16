@@ -5,13 +5,15 @@ from pad import Pad, Padsize
 
 DEBUG_TEXT = True
 
+
 class Window:
     PAD_SIZE = 5000
     NUM_ROWS = 13
     NUM_COLS = 2
-    status_messages = deque(maxlen = PAD_SIZE)
-    debug_messages = deque(maxlen = PAD_SIZE)
+    status_messages = deque(maxlen=PAD_SIZE)
+    debug_messages = deque(maxlen=PAD_SIZE)
     pads = {}
+
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.max_y, self.max_x = stdscr.getmaxyx()
@@ -96,7 +98,6 @@ class Window:
             pad.addstr(idx, 0, contract.print_info())
             idx += 1
             for train_id, train in contract.trains.items():
-                trainstr = train.print_info()
                 if train.current_delay() >= 120:
                     pad.addcstr(idx, 4, train_id, curses.color_pair(2))
                 elif train.current_delay() >= 60:

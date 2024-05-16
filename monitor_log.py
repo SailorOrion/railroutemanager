@@ -11,6 +11,7 @@ from uniquedeque import UniqueDeque
 from mainwindow import Window
 from pad import Pad
 
+
 def parse_log_line(line):
     match = re.search(r'Delay for train (.+?)\[(.+?)\]: ([^$]+)', line)
     if match:
@@ -24,7 +25,7 @@ def parse_log_line(line):
                 multiplier = -1
                 delay_str = delay_str[1:]
             delay = timedelta(hours=int(delay_str[0:2]), minutes=int(delay_str[3:5]),
-                       seconds=int(delay_str[6:8]))
+                              seconds=int(delay_str[6:8]))
             delay_in_seconds = delay.total_seconds() * multiplier
         except ValueError:
             delay_in_seconds = 0
@@ -32,12 +33,14 @@ def parse_log_line(line):
         return (id, location, delay_in_seconds)
     return None
 
+
 def parse_bad_platform(line):
     match = re.search(r'Bad platform for train (.+)', line)
     if match:
         return match.group(1)
 
     return None
+
 
 def get_contract_id(id):
     match = re.search(r'([A-Za-z]+)(\d{3})', id)
@@ -48,6 +51,7 @@ def get_contract_id(id):
             return match.group(1), match.group(2)
 
     raise ValueError
+
 
 def monitor_log(stdscr, filepath, historypath):
     curses.curs_set(0)  # Hide the cursor
@@ -63,9 +67,9 @@ def monitor_log(stdscr, filepath, historypath):
     early = {}
     removed_trains = []
     contracts = {}
-    recent_delays = UniqueDeque(maxlen = 12)
-    recent_lines = UniqueDeque(maxlen = 200)
-    removed_trains = UniqueDeque(maxlen = 200)
+    recent_delays = UniqueDeque(maxlen=12)
+    recent_lines = UniqueDeque(maxlen=200)
+    removed_trains = UniqueDeque(maxlen=200)
     w = Window(stdscr)
     file = None
 
@@ -83,7 +87,7 @@ def monitor_log(stdscr, filepath, historypath):
             if not line:
                 time.sleep(0.1)
                 if history_file is not None:
-                    w.update_status(f"Ending history parsing")
+                    w.update_status("Ending history parsing")
                     history_file.close()
                     history_file = None
                     w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
@@ -100,7 +104,7 @@ def monitor_log(stdscr, filepath, historypath):
                     if not recent_lines.appendleft((train_id, location, delay)):
                         continue
                     contract_type, contract_id = get_contract_id(train_id)
-                    if not contract_id in contracts:
+                    if contract_id not in contracts:
                         contracts[contract_id] = Contract(contract_id, contract_type, w)
 
                     contracts[contract_id].new_location_for_train(train_id, location, delay)
@@ -134,7 +138,6 @@ def monitor_log(stdscr, filepath, historypath):
                     tid = parse_bad_platform(line)
                     if tid:
                         w.update_status(f"{tid}: Bad platform!")
-                        dirty = True
 
             ch = stdscr.getch()
             if ch == ord('q'):  # Exit loop if 'q' is pressed
@@ -154,11 +157,11 @@ def monitor_log(stdscr, filepath, historypath):
             elif ch == curses.KEY_RESIZE:
                 w.resize(stdscr)
 
-
     finally:
         current_file.close()
         if history_file is not None:
             history_file.close()
+
 
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
