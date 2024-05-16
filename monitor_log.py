@@ -2,6 +2,7 @@
 import time
 import re
 import curses
+import logging
 
 from datetime import timedelta
 
@@ -65,20 +66,19 @@ def monitor_log(stdscr, filepath, historypath):
     recent_delays = UniqueDeque(maxlen = 12)
     recent_lines = UniqueDeque(maxlen = 200)
     removed_trains = UniqueDeque(maxlen = 200)
-    active_train_pos = 0
-    inactive_train_pos = 0
-    active_page_size = 0
-    inactive_page_size = 0
-    skip_update = True
     w = Window(stdscr)
+    file = None
 
     try:
         while True:
             if history_file is not None:
+                if file != history_file:
+                    logging.info(f"Reading {file}")
                 file = history_file
             else:
+                if file is not None and file != current_file:
+                    logging.info(f"Reading {file}")
                 file = current_file
-            w.update_status(f"Reading {file}")
             line = file.readline()
             if not line:
                 time.sleep(0.1)
@@ -86,14 +86,19 @@ def monitor_log(stdscr, filepath, historypath):
                     w.update_status(f"Ending history parsing")
                     history_file.close()
                     history_file = None
-                else:
-                    skip_update = False
+                    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
+                    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
+                    w.update_recent_delays(recent_delays)
+                    w.update_recent_departed(removed_trains)
+
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
             else:
-                if not recent_lines.appendleft(line):
-                    continue
                 parsed = parse_log_line(line)
                 if parsed:
                     train_id, location, delay = parsed
+                    if not recent_lines.appendleft((train_id, location, delay)):
+                        continue
                     contract_type, contract_id = get_contract_id(train_id)
                     if not contract_id in contracts:
                         contracts[contract_id] = Contract(contract_id, contract_type, w)
@@ -102,24 +107,35 @@ def monitor_log(stdscr, filepath, historypath):
 
                     if delay > 60:
                         recent_delays.appendleft((train_id, location, delay))
-                        delays[contract_id] = (train_id, location, delay)  # Update the existing ID or add a new one
-                        early.pop(contract_id, None)
+                        delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
+                        early.pop(train_id, None)
                     elif delay <= -120:
-                        early[contract_id] = (train_id, location, delay)
-                        delays.pop(contract_id, None)
+                        early[train_id] = (train_id, location, delay)
+                        delays.pop(train_id, None)
                     else:
-                        delays.pop(contract_id, None)
-                        early.pop(contract_id, None)
+                        delays.pop(train_id, None)
+                        early.pop(train_id, None)
 
                     for train in contracts[contract_id].purge_trains():
                         removed_trains.appendleft((train.tid, train.current_location(), train.current_delay()))
+                        delays.pop(train_id, None)
+                        early.pop(train_id, None)
+
+                    if history_file is not None:
+                        continue
+                    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
+                    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
+                    w.update_recent_delays(recent_delays)
+                    w.update_recent_departed(removed_trains)
+
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
                 else:
                     tid = parse_bad_platform(line)
                     if tid:
                         w.update_status(f"{tid}: Bad platform!")
+                        dirty = True
 
-                if skip_update:
-                    continue
             ch = stdscr.getch()
             if ch == ord('q'):  # Exit loop if 'q' is pressed
                 break
@@ -138,19 +154,13 @@ def monitor_log(stdscr, filepath, historypath):
             elif ch == curses.KEY_RESIZE:
                 w.resize(stdscr)
 
-            w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
-            w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
-            w.update_recent_delays(recent_delays)
-            w.update_recent_departed(removed_trains)
-
-            w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
-            w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
 
     finally:
         current_file.close()
         if history_file is not None:
             history_file.close()
 
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":
     import sys

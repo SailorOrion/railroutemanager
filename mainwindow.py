@@ -1,20 +1,16 @@
 import curses
 
-from collections import namedtuple
+from collections import deque
+from pad import Pad, Padsize
 
-from uniquedeque import UniqueDeque
-from pad import Pad
-
-Padsize = namedtuple("Padsize",["start_row", "start_column", "rows", "columns"])
-DEBUG_TEXT = False
-STATUS_SIZE = 3
+DEBUG_TEXT = True
 
 class Window:
     PAD_SIZE = 5000
-    NUM_ROWS = 12
+    NUM_ROWS = 13
     NUM_COLS = 2
-    status_messages = UniqueDeque(maxlen = PAD_SIZE)
-    debug_messages = UniqueDeque(maxlen = PAD_SIZE)
+    status_messages = deque(maxlen = PAD_SIZE)
+    debug_messages = deque(maxlen = PAD_SIZE)
     pads = {}
     def __init__(self, stdscr):
         self.stdscr = stdscr
@@ -23,7 +19,7 @@ class Window:
         full_width = self.max_x
         half_width = self.max_x // 2
 
-        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", Padsize(11, 0, 1, 2))
+        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", Padsize(11, 0, 2, 2))
 
         self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", Padsize(0, 0, 4, 1))
         self.pads['removed'] = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", Padsize(4, 0, 3, 1))
@@ -31,17 +27,16 @@ class Window:
         self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", Padsize(9, 0, 2, 1))
 
         self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width, "Active trains for contract and last seen location:", Padsize(0, 1, 7, 1))
-        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", Padsize(7, 1, 3, 1))
-        self.pads['debug'] = Pad(self.PAD_SIZE, half_width, "Debug messages", Padsize(10, 1, 1, 1))
+        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", Padsize(7, 1, 4, 1))
         self.resize(stdscr)
 
     def resize(self, stdscr):
         self.max_y, self.max_x = stdscr.getmaxyx()
+        stdscr.clear()
         for padid, pad in self.pads.items():
             pad.resize(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
 
     def update_status(self, string):
-        return
         self.status_messages.appendleft(string)
         self.pads['status'].prepare()
         for idx, line in enumerate(list(self.status_messages)):

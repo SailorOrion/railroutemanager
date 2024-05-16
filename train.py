@@ -18,6 +18,11 @@ class Train:
     def locations(self):
         return [l.location for l in self._locations]
 
+    def set_route(self, route):
+        self._locations = []
+        for location in route:
+            self.new_location(location, -3.14)
+
     def new_location(self, location, delay):
         self._locations.append(Stop(location, delay))
 
@@ -50,6 +55,9 @@ class Train:
             self.done = True
         else:
             self.done = False
+
+    def is_done(self):
+        return self.done
 
     def __repr__(self):
         return f"{self.tid}: {self.current_location()}({self.num_locations()}: {self._locations})"
