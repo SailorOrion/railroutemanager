@@ -46,12 +46,9 @@ class Train:
         if self.num_locations() == 1:
             return f"| {self.current_delay():4.0f} | {self.current_location()}->?"
         elif self.num_locations() == 2:
-            return f"| {self.current_delay():4.0f} | \
-                    {self.previous_location()}->{self.current_location()}"
+            return f"| {self.current_delay():4.0f} | {self.previous_location()}->{self.current_location()}"
         else:
-            return f"| {self.current_delay():4.0f} | \
-                    {self.first_location()}---> \
-                    {self.previous_location()}->{self.current_location()}"
+            return f"| {self.current_delay():4.0f} | {self.first_location()}--->{self.previous_location()}->{self.current_location()}"
 
     def finalize(self, terminus):
         if self.current_location() == terminus:

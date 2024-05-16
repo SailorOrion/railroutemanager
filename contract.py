@@ -78,9 +78,7 @@ class Contract:
 
         if longest_route_length > self.length_of_route():
             if self.route_complete:
-                logging.debug(f"  Reopening route {self.cid},\
-                               previously: {self.route},\
-                               new: {self.trains[longest_route_id].locations()}")
+                logging.debug(f"  Reopening route {self.cid}, previously: {self.route}, new: {self.trains[longest_route_id].locations()}")
             self.route_complete = False
             self.route = self.trains[longest_route_id].locations()
             logging.debug(f"  New route: {self.cid}: {str(self.route)}")
@@ -92,8 +90,7 @@ class Contract:
     def repair_line_leader(self, train):
         logging.debug("Checking for route extension for {self.cid}")
         if train.tid in self.line_leaders and train.current_location() not in self.route:
-            logging.debug(f"New station {train.current_location()} found for line leader,\
-                            adding to existing route {self.route}")
+            logging.debug(f"New station {train.current_location()} found for line leader, adding to existing route {self.route}")
             new_location, new_delay = train.current_location(), train.current_delay()
             self.line_leaders = [train.tid, train.tid]
             train.set_route(self.route)
@@ -122,8 +119,7 @@ class Contract:
         return [self.del_train(tid) for tid in trains_to_delete]
 
     def print_info(self):
-        return f'{"*" if not self.route_complete else " "}{self.cid:>4}:\
-                {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
+        return f'{"*" if not self.route_complete else " "}{self.cid:>4}: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
 
     def __str__(self):
         return f"Contract {self.cid}" + str(self.trains)
