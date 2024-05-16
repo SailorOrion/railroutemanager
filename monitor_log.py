@@ -150,6 +150,10 @@ def monitor_log(stdscr, filepath, historypath):
                 w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
             elif ch == ord('d'):
                 w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
+            elif ch == ord('r'):
+                w.pads['active_contract'].set_selection(-1)
+            elif ch == ord('f'):
+                w.pads['active_contract'].set_selection(+1)
             elif ch == curses.KEY_PPAGE:
                 w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
             elif ch == curses.KEY_NPAGE:

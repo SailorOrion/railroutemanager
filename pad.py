@@ -1,4 +1,5 @@
 import curses
+import logging
 
 from collections import namedtuple
 
@@ -15,8 +16,9 @@ class Pad:
         PAGE_UP = 2
         PAGE_DOWN = 3
 
-    _lines = 0
     _displayfirst = 0
+    _selected = -1
+    _contents = []
 
     def __init__(self, pad_height, pad_width, description, padsize, color=True):
         self._padsize = padsize
@@ -42,11 +44,14 @@ class Pad:
         self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
         self._borderwin.refresh()
 
+    def lines(self):
+        return len(self._contents)
+
     def draw_scrollbar(self):
         # Calculate scrollbar slider properties
-        if self._lines > self.contentheight():
-            scrollbar_height = max(ceil((self.contentheight() / self._lines) * self.contentheight()), 1)
-            scrollbar_pos = int(self._displayfirst / (self._lines - self.contentheight()) * (self.contentheight() - scrollbar_height))
+        if self.lines() > self.contentheight():
+            scrollbar_height = max(ceil((self.contentheight() / self.lines()) * self.contentheight()), 1)
+            scrollbar_pos = int(self._displayfirst / (self.lines() - self.contentheight()) * (self.contentheight() - scrollbar_height))
         else:
             for y in range(self.contentheight()):
                 self._borderwin.addch(y + 1, self.width() - 2, ' ')
@@ -65,8 +70,21 @@ class Pad:
         self._borderwin.box()
         self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
         self._borderwin.refresh()
+        for y_pos, x_pos, line, color_pair in self._contents:
+            if color_pair is None:
+                if y_pos == self._selected:
+                    self._pad.addstr(y_pos, x_pos, line, curses.A_REVERSE)
+                else:
+                    self._pad.addstr(y_pos, x_pos, line)
+            else:
+                self._pad.addstr(y_pos, x_pos, line, color_pair)
         d = self.draw_scrollbar()
         self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)
+
+    def set_selection(self, direction):
+        self._selected = max(0, min(self._selected + direction, self.lines()))
+        logging.info(f'Setting selection of {self._desc} to {self._selected}')
+        self.draw()
 
     def update_displaypos(self, mode):
         match mode:
@@ -80,20 +98,18 @@ class Pad:
                 self._displayfirst += self.height() // 2
             case _:
                 raise ValueError
-        self._displayfirst = max(0, min(self._displayfirst, self._lines - self.contentheight()))
+        self._displayfirst = max(0, min(self._displayfirst, self.lines() - self.contentheight()))
         self.draw()
 
     def prepare(self):
+        self._contents = []
         self._pad.erase()
-        self._lines = 0
 
     def addstr(self, y_pos, x_pos, line):
-        self._pad.addstr(y_pos, x_pos, line)
-        self._lines = max(self._lines, y_pos + 1)
+        self._contents.append((y_pos, x_pos, line, None))
 
     def addcstr(self, y_pos, x_pos, line, color_pair):
-        self._pad.addstr(y_pos, x_pos, line, color_pair)
-        self._lines = max(self._lines, y_pos + 1)
+        self._contents.append((y_pos, x_pos, line, color_pair))
 
     def height(self):
         return self._bottom - self._top
