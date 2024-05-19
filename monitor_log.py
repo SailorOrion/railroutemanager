@@ -87,7 +87,7 @@ def monitor_log(stdscr, filepath, historypath):
                     logging.info(f"Reading {file}")
                 line = file.readline()
             if not line:
-                time.sleep(0.1)
+                time.sleep(0.02)
                 if history_file is not None:
                     w.update_status("Ending history parsing")
                     history_file.close()

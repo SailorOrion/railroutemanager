@@ -34,7 +34,6 @@ class Window:
         self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", Padsize(7, 1, 4, 1))
         self.pads['inactive_contract']._verbose = 1
 
-        logging.info(self.pads)
         self.resize(stdscr)
 
     def resize(self, stdscr):

@@ -135,6 +135,8 @@ class Contract:
             logging.debug(f"New train: {tid} at {location}")
             if self.route_complete:
                 self.repair_line_leader(self.trains[tid])
+                if (self.length_of_route() == 1):
+                    self.trains[tid].finalize(self.end_of_route())
         else:
             self.trains[tid].new_location(location, delay)
             logging.debug(f"{location} for {tid}, train route {self.trains[tid].locations()}")

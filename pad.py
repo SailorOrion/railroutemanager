@@ -91,6 +91,13 @@ class Pad:
             return
         logging.info(f'{self._desc[:16]} {string}')
 
+    def adjust_view(self):
+        if (self._selected < self._displayfirst) or (self._selected > self._displayfirst + self.contentheight() - 1):
+            self._displayfirst = max(0, self._selected - self.contentheight() // 2)
+
+    def adjust_selected(self):
+        if (self._selected < self._displayfirst) or (self._selected > self._displayfirst + self.contentheight()):
+            self._selected = -1
 
     def draw(self):
         self._borderwin.box()
@@ -100,7 +107,17 @@ class Pad:
         self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)
 
     def set_selection(self, direction):
-        self._selected = max(0, min(self._selected + direction, self.lines()))
+        if self._selected == -1:
+            match direction:
+                case 1:
+                    self._selected = self._displayfirst
+                case -1:
+                    self._selected = self._displayfirst + self.contentheight() - 1
+                case _:
+                    raise ValueError
+        else:
+            self._selected = max(0, min(self._selected + direction, self.lines()))
+        self.adjust_view()
         self.update_draw()
 
     def get_selection(self):
@@ -125,6 +142,7 @@ class Pad:
             case _:
                 raise ValueError
         self._displayfirst = max(0, min(self._displayfirst, self.lines() - self.contentheight()))
+        self.adjust_selected()
         self.draw()
 
     def prepare(self):
@@ -132,8 +150,6 @@ class Pad:
         self._pad.erase()
 
     def addstr(self, y_pos, x_pos, line, ref=None, color_pair=None):
-        #self.loginfo(traceback.format_stack())
-        self.loginfo(id(self.__contents))
         if not y_pos in self.__contents:
             self.__contents[y_pos] = {}
         if not 'elements' in self.__contents[y_pos]:
