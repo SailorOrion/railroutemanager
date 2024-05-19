@@ -10,6 +10,7 @@ class Contract:
         self.route = []
         self.line_leaders = []
         self.trains = {}
+        self.completed_trains = {}
         self.route_complete = False
         self.w = window
 
@@ -19,6 +20,7 @@ class Contract:
     def del_train(self, tid):
         t = self.trains[tid]
         logging.debug(f"Removing train {tid}")
+        self.completed_trains[tid] = self.trains[tid]
         del self.trains[tid]
         return t
 
@@ -40,6 +42,35 @@ class Contract:
 
     def is_active(self):
         return self.number_of_trains() > 0
+
+    def make_train_detail(self, train):
+        elems = [None] * (len(self.route) + 1)
+        elems[0] = (f'{train.tid:>8}', 0)
+        logging.info(f'{train.tid}:{train.stops()}')
+        start_of_route = self.route.index(train.first_location())
+            # the +1 is for the title
+        for idx, stop in enumerate(train.stops(), start = start_of_route + 1):
+            delay = stop.delay
+            color_pair = 0
+            if delay >= 120:
+                color_pair = 2
+            elif delay >= 60:
+                color_pair = 1
+            elems[idx] = (f'{stop.delay:>8.0f}', color_pair)
+        return elems
+
+    def make_detail_view(self):
+        rows = []
+        title = "Station"
+        titlerow = [(f'{title:22}', 0)]
+        titlerow.extend([(f'{location:22}', 0) for location in self.route])
+        rows.append(titlerow)
+        for tid, train in self.completed_trains.items():
+            if tid not in self.trains:
+                rows.append(self.make_train_detail(train))
+        for tid, train in self.trains.items():
+            rows.append(self.make_train_detail(train))
+        return f'Detail for contract {self.cid}', list(map(list, zip(*rows)))
 
     def check_for_complete_route(self, length):
         handled_routes = {}
@@ -107,9 +138,9 @@ class Contract:
         else:
             self.trains[tid].new_location(location, delay)
             logging.debug(f"{location} for {tid}, train route {self.trains[tid].locations()}")
+            if self.route_complete:
+                self.trains[tid].finalize(self.end_of_route())
         self.update_route(tid)
-        if self.route_complete:
-            self.trains[tid].finalize(self.end_of_route())
 
         return self.trains[tid].is_done()
 

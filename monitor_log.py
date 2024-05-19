@@ -7,6 +7,7 @@ import logging
 from datetime import timedelta
 
 from contract import Contract
+from train import Train
 from uniquedeque import UniqueDeque
 from mainwindow import Window
 from pad import Pad
@@ -77,13 +78,14 @@ def monitor_log(stdscr, filepath, historypath):
         while True:
             if history_file is not None:
                 if file != history_file:
+                    file = history_file
                     logging.info(f"Reading {file}")
-                file = history_file
+                line = file.readline()
             else:
-                if file is not None and file != current_file:
+                if file != current_file:
+                    file = current_file
                     logging.info(f"Reading {file}")
-                file = current_file
-            line = file.readline()
+                line = file.readline()
             if not line:
                 time.sleep(0.1)
                 if history_file is not None:
@@ -95,8 +97,8 @@ def monitor_log(stdscr, filepath, historypath):
                     w.update_recent_delays(recent_delays)
                     w.update_recent_departed(removed_trains)
 
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
             else:
                 parsed = parse_log_line(line)
                 if parsed:
@@ -132,8 +134,8 @@ def monitor_log(stdscr, filepath, historypath):
                     w.update_recent_delays(recent_delays)
                     w.update_recent_departed(removed_trains)
 
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
                 else:
                     tid = parse_bad_platform(line)
                     if tid:
@@ -154,6 +156,20 @@ def monitor_log(stdscr, filepath, historypath):
                 w.pads['active_contract'].set_selection(-1)
             elif ch == ord('f'):
                 w.pads['active_contract'].set_selection(+1)
+            elif ch == ord('!'):
+                w.pads['active_contract'].update_draw()
+                w.pads['inactive_contract'].update_draw()
+                w.redraw_all()
+            elif ch == ord('x'):
+                ref = w.pads['active_contract'].get_selection_reference()
+                #logging.info(f'{ref}')
+                if isinstance(ref, Contract):
+                    title, contents = ref.make_detail_view()
+                    w.detail_view(title, contents)
+                elif isinstance(ref, Train):
+                    None
+                else:
+                    None
             elif ch == curses.KEY_PPAGE:
                 w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
             elif ch == curses.KEY_NPAGE:

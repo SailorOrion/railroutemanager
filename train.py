@@ -19,6 +19,9 @@ class Train:
     def locations(self):
         return [L.location for L in self._locations]
 
+    def stops(self):
+        return self._locations
+
     def set_route(self, route):
         self._locations = []
         for location in route:
@@ -53,8 +56,6 @@ class Train:
     def finalize(self, terminus):
         if self.current_location() == terminus:
             self.done = True
-        else:
-            self.done = False
 
     def is_done(self):
         return self.done

@@ -1,7 +1,8 @@
 import curses
 import logging
+import traceback
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from enum import Enum
 from math import ceil
@@ -16,17 +17,18 @@ class Pad:
         PAGE_UP = 2
         PAGE_DOWN = 3
 
-    _displayfirst = 0
-    _selected = -1
-    _contents = []
 
     def __init__(self, pad_height, pad_width, description, padsize, color=True):
+        self._displayfirst = 0
+        self._selected = -1
+        self._verbose = 0
         self._padsize = padsize
         self._desc = description
+        self.__contents = {}
 
         if color:
             curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-            curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_RED)
+            curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED)
 
         self._pad = curses.newpad(pad_height, pad_width)
 
@@ -45,7 +47,10 @@ class Pad:
         self._borderwin.refresh()
 
     def lines(self):
-        return len(self._contents)
+        if not self.__contents.keys():
+            return 0
+        temp = max(self.__contents.keys()) - min(self.__contents.keys())
+        return temp
 
     def draw_scrollbar(self):
         # Calculate scrollbar slider properties
@@ -66,25 +71,46 @@ class Pad:
 
         return 1
 
+    def update_pad(self):
+        for y_pos, contents in self.__contents.items():
+            for x_pos, line, color_pair in contents['elements']:
+                if color_pair is None:
+                    if y_pos == self._selected:
+                        self._pad.addstr(y_pos, x_pos, line, curses.A_REVERSE)
+                    else:
+                        self._pad.addstr(y_pos, x_pos, line)
+                else:
+                    self._pad.addstr(y_pos, x_pos, line, color_pair)
+
+    def update_draw(self):
+        self.update_pad()
+        self.draw()
+
+    def loginfo(self, string):
+        if not self._verbose:
+            return
+        logging.info(f'{self._desc[:16]} {string}')
+
+
     def draw(self):
         self._borderwin.box()
         self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
         self._borderwin.refresh()
-        for y_pos, x_pos, line, color_pair in self._contents:
-            if color_pair is None:
-                if y_pos == self._selected:
-                    self._pad.addstr(y_pos, x_pos, line, curses.A_REVERSE)
-                else:
-                    self._pad.addstr(y_pos, x_pos, line)
-            else:
-                self._pad.addstr(y_pos, x_pos, line, color_pair)
         d = self.draw_scrollbar()
         self._pad.refresh(self._displayfirst, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)
 
     def set_selection(self, direction):
         self._selected = max(0, min(self._selected + direction, self.lines()))
-        logging.info(f'Setting selection of {self._desc} to {self._selected}')
-        self.draw()
+        self.update_draw()
+
+    def get_selection(self):
+        ref = self.__contents[self._selected]['reference']
+        return ref
+
+    def get_selection_reference(self):
+        if self._selected < 0:
+            return None
+        return self.__contents[self._selected]['reference']
 
     def update_displaypos(self, mode):
         match mode:
@@ -102,14 +128,18 @@ class Pad:
         self.draw()
 
     def prepare(self):
-        self._contents = []
+        self.__contents.clear()
         self._pad.erase()
 
-    def addstr(self, y_pos, x_pos, line):
-        self._contents.append((y_pos, x_pos, line, None))
-
-    def addcstr(self, y_pos, x_pos, line, color_pair):
-        self._contents.append((y_pos, x_pos, line, color_pair))
+    def addstr(self, y_pos, x_pos, line, ref=None, color_pair=None):
+        #self.loginfo(traceback.format_stack())
+        self.loginfo(id(self.__contents))
+        if not y_pos in self.__contents:
+            self.__contents[y_pos] = {}
+        if not 'elements' in self.__contents[y_pos]:
+            self.__contents[y_pos]['elements'] = list()
+        self.__contents[y_pos]['elements'].append((x_pos, line, color_pair))
+        self.__contents[y_pos]['reference'] = ref
 
     def height(self):
         return self._bottom - self._top
