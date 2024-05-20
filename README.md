@@ -5,6 +5,10 @@ This is a simple log file parser which will analyse your contracts and trains.
 This is very much work in progress. It shouldn't break anything, since it does nothing more than read the Player.log file
 
 ## Instructions
+### Requirements
+* python 3.11 or higher
+* python-curses
+* python-plyer
 ### Prepraration and Execution
 In order to obtain detailed information, Rail Route Manager requires a couple of consecutive game cycles (or hours) worth of log files for a single save game.
 At the moment, here are the recommendations to get the most accurate information:
@@ -22,6 +26,9 @@ The game has two windows: a primary window and a contract detail view
 |Key(s)   |Function                  |
 |---------|--------------------------|
 |w/s      |Scroll active contracts   |
+|e/d      |Scroll inactive contracts |
+|r/f      |Select active contracts   |
+|t/g      |Select inactive contracts |
 |x        |Open contract detail      |
 |q        |Quit                      |
 #### Primary Window

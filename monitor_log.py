@@ -11,6 +11,7 @@ from train import Train
 from uniquedeque import UniqueDeque
 from mainwindow import Window
 from pad import Pad
+from plyer import notification
 
 
 def parse_log_line(line):
@@ -62,6 +63,7 @@ def monitor_log(stdscr, filepath, historypath):
 
     current_file = open(filepath, "r")
     history_file = None
+    notify = False
     if historypath != "":
         history_file = open(historypath, "r")
     delays = {}
@@ -99,6 +101,8 @@ def monitor_log(stdscr, filepath, historypath):
 
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                if file == current_file:
+                    notify = True
             else:
                 parsed = parse_log_line(line)
                 if parsed:
@@ -115,6 +119,8 @@ def monitor_log(stdscr, filepath, historypath):
                         recent_delays.appendleft((train_id, location, delay))
                         delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
                         early.pop(train_id, None)
+                        if delay > 120 and notify:
+                            notification.notify(title=f'{train_id} delayed', message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
                     elif delay <= -120:
                         early[train_id] = (train_id, location, delay)
                         delays.pop(train_id, None)
@@ -156,13 +162,25 @@ def monitor_log(stdscr, filepath, historypath):
                 w.pads['active_contract'].set_selection(-1)
             elif ch == ord('f'):
                 w.pads['active_contract'].set_selection(+1)
+            elif ch == ord('t'):
+                w.pads['inactive_contract'].set_selection(-1)
+            elif ch == ord('g'):
+                w.pads['inactive_contract'].set_selection(+1)
             elif ch == ord('!'):
                 w.pads['active_contract'].update_draw()
                 w.pads['inactive_contract'].update_draw()
                 w.redraw_all()
             elif ch == ord('x'):
                 ref = w.pads['active_contract'].get_selection_reference()
-                #logging.info(f'{ref}')
+                if isinstance(ref, Contract):
+                    title, contents = ref.make_detail_view()
+                    w.detail_view(title, contents)
+                elif isinstance(ref, Train):
+                    None
+                else:
+                    None
+            elif ch == ord('z'):
+                ref = w.pads['inactive_contract'].get_selection_reference()
                 if isinstance(ref, Contract):
                     title, contents = ref.make_detail_view()
                     w.detail_view(title, contents)
