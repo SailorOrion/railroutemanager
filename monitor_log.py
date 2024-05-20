@@ -142,6 +142,8 @@ def monitor_log(stdscr, filepath, historypath):
 
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
                     w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                    if not w.has_popup():
+                        w.redraw_all()
                 else:
                     tid = parse_bad_platform(line)
                     if tid:
@@ -149,7 +151,11 @@ def monitor_log(stdscr, filepath, historypath):
 
             ch = stdscr.getch()
             if ch == ord('q'):  # Exit loop if 'q' is pressed
-                break
+                if w.has_popup():
+                    w.destroy_popup()
+                    w.redraw_all()
+                else:
+                    break
             elif ch == ord('w'):
                 w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
             elif ch == ord('s'):

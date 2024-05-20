@@ -16,6 +16,7 @@ class Window:
         self.status_messages = deque(maxlen=self.PAD_SIZE)
         self.debug_messages = deque(maxlen=self.PAD_SIZE)
         self.pads = {}
+        self.popup = None
         self.stdscr = stdscr
         self.max_y, self.max_x = stdscr.getmaxyx()
 
@@ -48,7 +49,7 @@ class Window:
         for idx, line in enumerate(list(self.status_messages)):
             self.pads['status'].addstr(idx, 0, line)
 
-        self.pads['status'].update_draw()
+        self.pads['status'].update_pad()
 
     def update_debug(self, string):
         if not DEBUG_TEXT:
@@ -58,7 +59,7 @@ class Window:
         for idx, line in enumerate(list(self.debug_messages)):
             self.pads['debug'].addstr(idx, 0, line)
 
-        self.pads['debug'].update_draw()
+        self.pads['debug'].update_pad()
 
     def add_trainstr(self, pad, pos, delay, tid, location):
         pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
@@ -69,7 +70,7 @@ class Window:
         for idx, (tid, location, delay) in enumerate(delays):
             self.add_trainstr(self.pads['delay'], idx, delay, tid, location)
 
-        self.pads['delay'].update_draw()
+        self.pads['delay'].update_pad()
 
     def update_early_trains(self, early):
         self.pads['early'].prepare()
@@ -77,7 +78,7 @@ class Window:
         for idx, (tid, location, early) in enumerate(early):
             self.add_trainstr(self.pads['early'], idx, early, tid, location)
 
-        self.pads['early'].update_draw()
+        self.pads['early'].update_pad()
 
     def update_recent_delays(self, recent):
         self.pads['recent'].prepare()
@@ -85,14 +86,14 @@ class Window:
         for idx, (tid, location, delay) in enumerate(list(recent)):
             self.add_trainstr(self.pads['recent'], idx, delay, tid, location)
 
-        self.pads['recent'].update_draw()
+        self.pads['recent'].update_pad()
 
     def update_recent_departed(self, removed_trains):
         self.pads['removed'].prepare()
         for idx, (tid, location, delay) in enumerate(removed_trains):
             self.add_trainstr(self.pads['removed'], idx, delay, tid, location)
 
-        self.pads['removed'].update_draw()
+        self.pads['removed'].update_pad()
 
     def update_contracts(self, contracts, pad):
         logging.info(f'preparing pad: {pad._desc}')
@@ -114,36 +115,45 @@ class Window:
                 pad.addstr(idx, 13, train.print_info(), ref=train)
                 idx += 1
 
-        pad.update_draw()
+        pad.update_pad()
 
     def redraw_all(self):
         for _, pad in self.pads.items():
             pad.draw()
+
+    def has_popup(self):
+        return self.popup is not None
+
+    def destroy_popup(self):
+        self.popup.clear()
+        self.popup = None
+        self.redraw_all()
 
     def detail_view(self, title, message):
         # Calculate the size and position of the window
         height, width = self.max_y - 10, self.max_x - 10
         y, x = (curses.LINES - height) // 2, (curses.COLS - width) // 2
 
-        popup = curses.newwin(height, width, y, x)  # Create a new window
-        popup.box()  # Draw a box around the edges
+        self.popup = curses.newwin(height, width, y, x)  # Create a new window
+        self.popup.box()  # Draw a box around the edges
 
         # Add the title and message text
-        popup.addstr(0, 2, ' ' + title + ' ')
+        self.popup.addstr(0, 2, ' ' + title + ' ')
 
         prevline = None
         for idx, line in enumerate(message, start = 3):
             for pos, cellinfo in enumerate(line):
                 if cellinfo is not None:
                     (text, color_pair_index) = cellinfo
-                    popup.addstr(idx, 2 + pos * 14, text, curses.color_pair(color_pair_index))
+                    self.popup.addstr(idx, 2 + pos * 14, text, curses.color_pair(color_pair_index))
                 else:
                     if prevline is not None and prevline[pos] is not None: # ACS_DARROW A_BLINK
                         marker = '*'
-                        popup.addstr(idx, 2 + pos * 14, f'{marker:>8}')
+                        self.popup.addstr(idx, 2 + pos * 14, f'{marker:>8}')
 
             prevline = line
-        popup.refresh()
+        self.popup.refresh()
+        return self.popup
 
         # Wait for user input, then destroy the popup window
         popup.getch()

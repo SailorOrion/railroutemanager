@@ -25,6 +25,7 @@ class Pad:
         self._padsize = padsize
         self._desc = description
         self.__contents = {}
+        self._dirty = True
 
         if color:
             curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
@@ -72,6 +73,7 @@ class Pad:
         return 1
 
     def update_pad(self):
+        dirty = True
         for y_pos, contents in self.__contents.items():
             for x_pos, line, color_pair in contents['elements']:
                 if color_pair is None:
