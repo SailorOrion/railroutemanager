@@ -14,7 +14,7 @@ from plyer import notification
 
 
 def parse_log_line(line):
-    match = re.search(r'Delay for train (.+?)\[(.+?)\]: ([^$]+)', line)
+    match = re.search(r'Delay for train (.+?)\[(.+?)]: ([^$]+)', line)
     if match:
         train_id = match.group(1)
         location = match.group(2)
@@ -86,25 +86,8 @@ def monitor_log(stdscr, filepath, historypath):
                     file = current_file
                     logging.info(f"Reading {file}")
                 line = file.readline()
-            if not line:
-                time.sleep(0.02)
-                if history_file is not None:
-                    w.update_status("Ending history parsing")
-                    history_file.close()
-                    history_file = None
-                    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
-                    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
-                    w.update_recent_delays(recent_delays)
-                    w.update_recent_departed(removed_trains)
 
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
-                                       w.pads['inactive_contract'])
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
-                                       w.pads['active_contract'])
-                    w.redraw_all()
-                if file == current_file:
-                    notify = True
-            else:
+            if line:
                 parsed = parse_log_line(line)
                 if parsed:
                     train_id, location, delay = parsed
@@ -135,68 +118,88 @@ def monitor_log(stdscr, filepath, historypath):
                         delays.pop(train_id, None)
                         early.pop(train_id, None)
 
-                    if history_file is not None:
+                    if file != current_file:
                         continue
-                    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
-                    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
-                    w.update_recent_delays(recent_delays)
-                    w.update_recent_departed(removed_trains)
-
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
-                                       w.pads['inactive_contract'])
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
-                                       w.pads['active_contract'])
+                    update_pads(contracts, delays, early, recent_delays, removed_trains, w)
                     if not w.has_popup():
                         w.redraw_all()
                 else:
                     tid = parse_bad_platform(line)
                     if tid:
                         w.update_status(f"{tid}: Bad platform!")
-
-            ch = stdscr.getch()
-            if ch == ord('q'):  # Exit loop if 'q' is pressed
-                if w.has_popup():
-                    w.destroy_popup()
+            else:
+                time.sleep(0.02)
+                if history_file is not None:
+                    w.update_status("Ending history parsing")
+                    history_file.close()
+                    history_file = None
+                    update_pads(contracts, delays, early, recent_delays, removed_trains, w)
                     w.redraw_all()
-                else:
-                    break
-            elif ch == ord('w'):
-                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
-            elif ch == ord('s'):
-                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
-            elif ch == ord('e'):
-                w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
-            elif ch == ord('d'):
-                w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
-            elif ch == ord('r'):
-                w.pads['active_contract'].set_selection(-1)
-            elif ch == ord('f'):
-                w.pads['active_contract'].set_selection(+1)
-            elif ch == ord('t'):
-                w.pads['inactive_contract'].set_selection(-1)
-            elif ch == ord('g'):
-                w.pads['inactive_contract'].set_selection(+1)
-            elif ch == ord('x'):
-                ref = w.pads['active_contract'].get_selection_reference()
-                if isinstance(ref, Contract):
-                    title, contents = ref.make_detail_view()
-                    w.detail_view(title, contents)
-            elif ch == ord('z'):
-                ref = w.pads['inactive_contract'].get_selection_reference()
-                if isinstance(ref, Contract):
-                    title, contents = ref.make_detail_view()
-                    w.detail_view(title, contents)
-            elif ch == curses.KEY_PPAGE:
-                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
-            elif ch == curses.KEY_NPAGE:
-                w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_DOWN)
-            elif ch == curses.KEY_RESIZE:
-                w.resize(stdscr)
+                if file == current_file:
+                    notify = True
+
+            if handle_input(stdscr, w):
+                break
 
     finally:
         current_file.close()
         if history_file is not None:
             history_file.close()
+
+
+def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
+    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
+    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
+    w.update_recent_delays(recent_delays)
+    w.update_recent_departed(removed_trains)
+    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
+                       w.pads['inactive_contract'])
+    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
+                       w.pads['active_contract'])
+
+
+def handle_input(stdscr, w):
+    terminate = False
+    ch = stdscr.getch()
+    if ch == ord('q'):  # Exit loop if 'q' is pressed
+        if w.has_popup():
+            w.destroy_popup()
+            w.redraw_all()
+        else:
+            terminate = True
+    elif ch == ord('w'):
+        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
+    elif ch == ord('s'):
+        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
+    elif ch == ord('e'):
+        w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
+    elif ch == ord('d'):
+        w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
+    elif ch == ord('r'):
+        w.pads['active_contract'].set_selection(-1)
+    elif ch == ord('f'):
+        w.pads['active_contract'].set_selection(+1)
+    elif ch == ord('t'):
+        w.pads['inactive_contract'].set_selection(-1)
+    elif ch == ord('g'):
+        w.pads['inactive_contract'].set_selection(+1)
+    elif ch == ord('x'):
+        ref = w.pads['active_contract'].get_selection_reference()
+        if isinstance(ref, Contract):
+            title, contents = ref.make_detail_view()
+            w.detail_view(title, contents)
+    elif ch == ord('z'):
+        ref = w.pads['inactive_contract'].get_selection_reference()
+        if isinstance(ref, Contract):
+            title, contents = ref.make_detail_view()
+            w.detail_view(title, contents)
+    elif ch == curses.KEY_PPAGE:
+        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
+    elif ch == curses.KEY_NPAGE:
+        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_DOWN)
+    elif ch == curses.KEY_RESIZE:
+        w.resize(stdscr)
+    return terminate
 
 
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -209,7 +212,7 @@ if __name__ == "__main__":
 
     filepath = sys.argv[1]
     if len(sys.argv) == 3:
-        historypath = sys.argv[2]
+        history_path = sys.argv[2]
     else:
-        historypath = ""
-    curses.wrapper(monitor_log, filepath, historypath)
+        history_path = ""
+    curses.wrapper(monitor_log, filepath, history_path)
