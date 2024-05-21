@@ -1,8 +1,7 @@
 import curses
 import logging
-import traceback
 
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 
 from enum import Enum
 from math import ceil
@@ -17,8 +16,13 @@ class Pad:
         PAGE_UP = 2
         PAGE_DOWN = 3
 
-
     def __init__(self, pad_height, pad_width, description, padsize, color=True):
+        self._top = None
+        self._bottom = None
+        self._left = None
+        self._right = None
+        self._borderwin = None
+
         self._displayfirst = 0
         self._selected = -1
         self._verbose = 0

@@ -7,7 +7,6 @@ import logging
 from datetime import timedelta
 
 from contract import Contract
-from train import Train
 from uniquedeque import UniqueDeque
 from mainwindow import Window
 from pad import Pad
@@ -17,13 +16,13 @@ from plyer import notification
 def parse_log_line(line):
     match = re.search(r'Delay for train (.+?)\[(.+?)\]: ([^$]+)', line)
     if match:
-        id = match.group(1)
+        train_id = match.group(1)
         location = match.group(2)
         delay_str = match.group(3).strip()
         multiplier = 1
 
         try:
-            if (delay_str[0] == '-'):
+            if delay_str[0] == '-':
                 multiplier = -1
                 delay_str = delay_str[1:]
             delay = timedelta(hours=int(delay_str[0:2]), minutes=int(delay_str[3:5]),
@@ -32,7 +31,7 @@ def parse_log_line(line):
         except ValueError:
             delay_in_seconds = 0
 
-        return (id, location, delay_in_seconds)
+        return train_id, location, delay_in_seconds
     return None
 
 
@@ -44,11 +43,11 @@ def parse_bad_platform(line):
     return None
 
 
-def get_contract_id(id):
-    match = re.search(r'([A-Za-z]+)(\d{3})', id)
+def get_contract_id(train_id):
+    match = re.search(r'([A-Za-z]+)(\d{3})', train_id)
     if match:
         if match.group(1) == 'Reg':
-            return match.group(1), match.group(2) + id[6]
+            return match.group(1), match.group(2) + train_id[6]
         else:
             return match.group(1), match.group(2)
 
@@ -68,7 +67,6 @@ def monitor_log(stdscr, filepath, historypath):
         history_file = open(historypath, "r")
     delays = {}
     early = {}
-    removed_trains = []
     contracts = {}
     recent_delays = UniqueDeque(maxlen=12)
     recent_lines = UniqueDeque(maxlen=200)
@@ -99,8 +97,11 @@ def monitor_log(stdscr, filepath, historypath):
                     w.update_recent_delays(recent_delays)
                     w.update_recent_departed(removed_trains)
 
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
+                                       w.pads['inactive_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
+                                       w.pads['active_contract'])
+                    w.redraw_all()
                 if file == current_file:
                     notify = True
             else:
@@ -120,7 +121,8 @@ def monitor_log(stdscr, filepath, historypath):
                         delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
                         early.pop(train_id, None)
                         if delay > 120 and notify:
-                            notification.notify(title=f'{train_id} delayed', message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
+                            notification.notify(title=f'{train_id} delayed',
+                                                message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
                     elif delay <= -120:
                         early[train_id] = (train_id, location, delay)
                         delays.pop(train_id, None)
@@ -140,8 +142,10 @@ def monitor_log(stdscr, filepath, historypath):
                     w.update_recent_delays(recent_delays)
                     w.update_recent_departed(removed_trains)
 
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()], w.pads['inactive_contract'])
-                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()], w.pads['active_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
+                                       w.pads['inactive_contract'])
+                    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
+                                       w.pads['active_contract'])
                     if not w.has_popup():
                         w.redraw_all()
                 else:
@@ -172,28 +176,16 @@ def monitor_log(stdscr, filepath, historypath):
                 w.pads['inactive_contract'].set_selection(-1)
             elif ch == ord('g'):
                 w.pads['inactive_contract'].set_selection(+1)
-            elif ch == ord('!'):
-                w.pads['active_contract'].update_draw()
-                w.pads['inactive_contract'].update_draw()
-                w.redraw_all()
             elif ch == ord('x'):
                 ref = w.pads['active_contract'].get_selection_reference()
                 if isinstance(ref, Contract):
                     title, contents = ref.make_detail_view()
                     w.detail_view(title, contents)
-                elif isinstance(ref, Train):
-                    None
-                else:
-                    None
             elif ch == ord('z'):
                 ref = w.pads['inactive_contract'].get_selection_reference()
                 if isinstance(ref, Contract):
                     title, contents = ref.make_detail_view()
                     w.detail_view(title, contents)
-                elif isinstance(ref, Train):
-                    None
-                else:
-                    None
             elif ch == curses.KEY_PPAGE:
                 w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
             elif ch == curses.KEY_NPAGE:

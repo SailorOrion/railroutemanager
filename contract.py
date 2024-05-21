@@ -48,8 +48,8 @@ class Contract:
         elems[0] = (f'{train.tid:>8}', 0)
         logging.info(f'{train.tid}:{train.stops()}')
         start_of_route = self.route.index(train.first_location())
-            # the +1 is for the title
-        for idx, stop in enumerate(train.stops(), start = start_of_route + 1):
+        # the +1 is for the title
+        for idx, stop in enumerate(train.stops(), start=start_of_route + 1):
             delay = stop.delay
             color_pair = 0
             if delay >= 120:
@@ -135,7 +135,7 @@ class Contract:
             logging.debug(f"New train: {tid} at {location}")
             if self.route_complete:
                 self.repair_line_leader(self.trains[tid])
-                if (self.length_of_route() == 1):
+                if self.length_of_route() == 1:
                     self.trains[tid].finalize(self.end_of_route())
         else:
             self.trains[tid].new_location(location, delay)

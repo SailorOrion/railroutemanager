@@ -30,10 +30,10 @@ class Window:
         self.pads['early'] = Pad(self.PAD_SIZE, half_width, "Early trains:", Padsize(7, 0, 2, 1))
         self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", Padsize(9, 0, 2, 1))
 
-        self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width, "Active trains for contract and last seen location:", Padsize(0, 1, 7, 1))
-        self.pads['active_contract']._verbose = 1
-        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains", Padsize(7, 1, 4, 1))
-        self.pads['inactive_contract']._verbose = 1
+        self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width,
+                                           "Active trains for contract and last seen location:", Padsize(0, 1, 7, 1))
+        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains",
+                                             Padsize(7, 1, 4, 1))
 
         self.resize(stdscr)
 
@@ -96,7 +96,6 @@ class Window:
         self.pads['removed'].update_pad()
 
     def update_contracts(self, contracts, pad):
-        logging.info(f'preparing pad: {pad._desc}')
         pad.prepare()
 
         idx = 0
@@ -141,24 +140,16 @@ class Window:
         self.popup.addstr(0, 2, ' ' + title + ' ')
 
         prevline = None
-        for idx, line in enumerate(message, start = 3):
+        for idx, line in enumerate(message, start=3):
             for pos, cellinfo in enumerate(line):
                 if cellinfo is not None:
                     (text, color_pair_index) = cellinfo
                     self.popup.addstr(idx, 2 + pos * 14, text, curses.color_pair(color_pair_index))
                 else:
-                    if prevline is not None and prevline[pos] is not None: # ACS_DARROW A_BLINK
+                    if prevline is not None and prevline[pos] is not None:  # ACS_DARROW A_BLINK
                         marker = '*'
                         self.popup.addstr(idx, 2 + pos * 14, f'{marker:>8}')
 
             prevline = line
         self.popup.refresh()
         return self.popup
-
-        # Wait for user input, then destroy the popup window
-        popup.getch()
-        popup.clear()
-        popup.refresh()
-        self.redraw_all()
-
-
