@@ -88,45 +88,8 @@ def monitor_log(stdscr, filepath, historypath):
                 line = file.readline()
 
             if line:
-                parsed = parse_log_line(line)
-                if parsed:
-                    train_id, location, delay = parsed
-                    if not recent_lines.appendleft((train_id, location, delay)):
-                        continue
-                    contract_type, contract_id = get_contract_id(train_id)
-                    if contract_id not in contracts:
-                        contracts[contract_id] = Contract(contract_id, contract_type, w)
-
-                    contracts[contract_id].new_location_for_train(train_id, location, delay)
-
-                    if delay > 60:
-                        recent_delays.appendleft((train_id, location, delay))
-                        delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
-                        early.pop(train_id, None)
-                        if delay > 120 and notify:
-                            notification.notify(title=f'{train_id} delayed',
-                                                message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
-                    elif delay <= -120:
-                        early[train_id] = (train_id, location, delay)
-                        delays.pop(train_id, None)
-                    else:
-                        delays.pop(train_id, None)
-                        early.pop(train_id, None)
-
-                    for train in contracts[contract_id].purge_trains():
-                        removed_trains.appendleft((train.tid, train.current_location(), train.current_delay()))
-                        delays.pop(train_id, None)
-                        early.pop(train_id, None)
-
-                    if file != current_file:
-                        continue
-                    update_pads(contracts, delays, early, recent_delays, removed_trains, w)
-                    if not w.has_popup():
-                        w.redraw_all()
-                else:
-                    tid = parse_bad_platform(line)
-                    if tid:
-                        w.update_status(f"{tid}: Bad platform!")
+                process_log_line(contracts, current_file, delays, early, file, line, notify, recent_delays,
+                                 recent_lines, removed_trains, w)
             else:
                 time.sleep(0.02)
                 if history_file is not None:
@@ -147,6 +110,47 @@ def monitor_log(stdscr, filepath, historypath):
             history_file.close()
 
 
+def process_log_line(contracts, current_file, delays, early, file, line, notify, recent_delays, recent_lines,
+                     removed_trains, w):
+    parsed = parse_log_line(line)
+    if parsed:
+        train_id, location, delay = parsed
+        if recent_lines.appendleft((train_id, location, delay)):
+            contract_type, contract_id = get_contract_id(train_id)
+            if contract_id not in contracts:
+                contracts[contract_id] = Contract(contract_id, contract_type, w)
+
+            contracts[contract_id].new_location_for_train(train_id, location, delay)
+
+            if delay > 60:
+                recent_delays.appendleft((train_id, location, delay))
+                delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
+                early.pop(train_id, None)
+                if delay > 120 and notify:
+                    notification.notify(title=f'{train_id} delayed',
+                                        message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
+            elif delay <= -120:
+                early[train_id] = (train_id, location, delay)
+                delays.pop(train_id, None)
+            else:
+                delays.pop(train_id, None)
+                early.pop(train_id, None)
+
+            for train in contracts[contract_id].purge_trains():
+                removed_trains.appendleft((train.tid, train.current_location(), train.current_delay()))
+                delays.pop(train_id, None)
+                early.pop(train_id, None)
+
+            if notify:
+                update_pads(contracts, delays, early, recent_delays, removed_trains, w)
+                if not w.has_popup():
+                    w.redraw_all()
+    else:
+        tid = parse_bad_platform(line)
+        if tid:
+            w.update_status(f"{tid}: Bad platform!")
+
+
 def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
     w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
     w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
@@ -161,12 +165,13 @@ def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
 def handle_input(stdscr, w):
     terminate = False
     ch = stdscr.getch()
-    if ch == ord('q'):  # Exit loop if 'q' is pressed
-        if w.has_popup():
+    if w.has_popup():
+        if ch == ord('q'):
             w.destroy_popup()
             w.redraw_all()
-        else:
-            terminate = True
+        return
+    if ch == ord('q'):  # Exit loop if 'q' is pressed
+        terminate = True
     elif ch == ord('w'):
         w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
     elif ch == ord('s'):
