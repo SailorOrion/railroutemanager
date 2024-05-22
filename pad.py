@@ -10,11 +10,28 @@ PadSize = namedtuple("PadSize", ["start_row", "start_column", "rows", "columns"]
 
 
 class Pad:
+    _max_y = None
+    _max_x = None
+    _num_rows = None
+    _num_columns = None
+
     class ScrollMode(Enum):
         LINE_UP = 0
         LINE_DOWN = 1
         PAGE_UP = 2
         PAGE_DOWN = 3
+
+    @classmethod
+    def set_size_params(cls, max_y, max_x, num_rows, num_columns):
+        cls._max_y = max_y
+        cls._max_x = max_x
+        cls._num_rows = num_rows
+        cls._num_columns = num_columns
+        curses.update_lines_cols()
+        curses.resizeterm(curses.LINES, curses.COLS)
+        logging.info(f'Max Y: {cls._max_y}, Max X: {cls._max_x},'
+                     f'Num Rows: {cls._num_rows}, Num Columns: {cls._num_columns},'
+                     f'{curses.COLS}, {curses.LINES}')
 
     def __init__(self, pad_height, pad_width, description, pad_size, color=True):
         self._top = None
@@ -35,13 +52,20 @@ class Pad:
 
         self._pad = curses.newpad(pad_height, pad_width)
 
-    def resize(self, max_y, max_x, num_rows, num_cols):
-        self._top = int(max_y * self._pad_size.start_row / num_rows)
-        self._bottom = int((max_y * self._pad_size.rows + max_y * self._pad_size.start_row) / num_rows)
+    def resize(self):
+        self._top = int(self._max_y * self._pad_size.start_row / self._num_rows)
+        self._bottom = int((self._max_y * self._pad_size.rows + self._max_y * self._pad_size.start_row) / self._num_rows)
 
-        self._left = int(max_x * self._pad_size.start_column / num_cols)
-        self._right = int((max_x * self._pad_size.columns + max_x * self._pad_size.start_column) / num_cols)
+        self._left = int(self._max_x * self._pad_size.start_column / self._num_columns)
+        self._right = int((self._max_x * self._pad_size.columns + self._max_x * self._pad_size.start_column) / self._num_columns)
         self.log_info(f'Resized pad to {self._top}, {self._bottom}, {self._left}, {self._right}')
+        if self._right > curses.COLS or self._bottom > curses.LINES:
+            raise ValueError
+
+        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
+        self._borderwin.box()
+        self._borderwin.addstr(0, 2, ' ' + self._desc + ' ', curses.A_REVERSE)
+        self._borderwin.refresh()
 
     def lines(self):
         if not self._contents.keys():
@@ -96,10 +120,6 @@ class Pad:
             self._selected = -1
 
     def draw(self):
-        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
-        self._borderwin.box()
-        self._borderwin.addstr(0, 2, self._desc, curses.A_REVERSE)
-        self._borderwin.refresh()
         d = self.draw_scrollbar()
 
         self._pad.refresh(self._display_first, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)
@@ -145,7 +165,7 @@ class Pad:
 
     def prepare(self):
         self._contents.clear()
-        self._pad.clear()
+        self._pad.erase()
 
     def addstr(self, y_pos, x_pos, line, ref=None, color_pair=None):
         if y_pos not in self._contents:

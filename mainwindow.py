@@ -23,6 +23,8 @@ class Window:
         full_width = self.max_x
         half_width = self.max_x // 2
 
+        Pad.set_size_params(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
+
         self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", PadSize(11, 0, 2, 2))
 
         self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", PadSize(0, 0, 4, 1))
@@ -39,9 +41,12 @@ class Window:
 
     def resize(self, stdscr):
         logging.info(f'Resizing to {stdscr.getmaxyx()}')
-        self.max_y, self.max_x = stdscr.getmaxyx()
+        new_y, new_x = stdscr.getmaxyx()
+        if self.max_x != new_x or self.max_y != new_y:
+            self.max_y, self.max_x = stdscr.getmaxyx()
+            Pad.set_size_params(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
         for pad_id, pad in self.pads.items():
-            pad.resize(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
+            pad.resize()
 
     def update_status(self, string):
         self.status_messages.appendleft(string)
@@ -59,7 +64,7 @@ class Window:
         for idx, line in enumerate(list(self.debug_messages)):
             self.pads['debug'].addstr(idx, 0, line)
 
-        self.pads['debug'].update_pad()
+        self.pads['debug'].update_draw()
 
     def _add_train_str(self, pad, pos, delay, tid, location):
         pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
