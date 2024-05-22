@@ -150,7 +150,8 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
             if contract_id not in contracts:
                 contracts[contract_id] = Contract(contract_id, contract_type, w)
 
-            contracts[contract_id].new_location_for_train(train_id, location, delay)
+            if contracts[contract_id].new_location_for_train(train_id, location, delay):
+                w.update_status(f'Closed route {contract_id}')
 
             if delay > 60:
                 recent_delays.appendleft((train_id, location, delay))
@@ -241,7 +242,7 @@ def handle_input(stdscr, w):
     return terminate
 
 
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":
     import sys

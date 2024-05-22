@@ -74,7 +74,7 @@ class Contract:
 
     def check_for_complete_route(self, length):
         handled_routes = {}
-        logging.debug(f"Checking route completion: {len(self.trains)} trains")
+        logging.debug(f"Checking route completion: {len(self.trains)} trains: {[train.tid for train in self.trains.values()]}")
         for train_id, train in self.trains.items():
             logging.debug(f"  {train_id}: {train.locations()}")
             tuple_list = tuple(train.locations())
@@ -95,7 +95,7 @@ class Contract:
             else:
                 logging.debug("Incomplete route")
                 handled_routes[tuple_list] = train_id
-                return False
+        return False
 
     def update_route(self, tid):
         longest_route_length = self.length_of_route()
@@ -144,9 +144,10 @@ class Contract:
             logging.debug(f"{location} for {tid}, train route {self.trains[tid].locations()}")
             if self.route_complete:
                 self.trains[tid].finalize(self.end_of_route())
-        self.update_route(tid)
+        closed_route = self.update_route(tid)
 
-        return self.trains[tid].is_done()
+        self.trains[tid].is_done()
+        return closed_route
 
     def purge_trains(self):
         trains_to_delete = [tid for tid, t in self.trains.items() if t.done]
