@@ -2,7 +2,7 @@ import curses
 import logging
 
 from collections import deque
-from pad import Pad, Padsize
+from pad import Pad, PadSize
 
 DEBUG_TEXT = True
 
@@ -23,24 +23,24 @@ class Window:
         full_width = self.max_x
         half_width = self.max_x // 2
 
-        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", Padsize(11, 0, 2, 2))
+        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", PadSize(11, 0, 2, 2))
 
-        self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", Padsize(0, 0, 4, 1))
-        self.pads['removed'] = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", Padsize(4, 0, 3, 1))
-        self.pads['early'] = Pad(self.PAD_SIZE, half_width, "Early trains:", Padsize(7, 0, 2, 1))
-        self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", Padsize(9, 0, 2, 1))
+        self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", PadSize(0, 0, 4, 1))
+        self.pads['removed'] = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", PadSize(4, 0, 3, 1))
+        self.pads['early'] = Pad(self.PAD_SIZE, half_width, "Early trains:", PadSize(7, 0, 2, 1))
+        self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", PadSize(9, 0, 2, 1))
 
         self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width,
-                                           "Active trains for contract and last seen location:", Padsize(0, 1, 7, 1))
+                                           "Active trains for contract and last seen location:", PadSize(0, 1, 7, 1))
         self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains",
-                                             Padsize(7, 1, 4, 1))
+                                             PadSize(7, 1, 4, 1))
 
         self.resize(stdscr)
 
     def resize(self, stdscr):
+        logging.info(f'Resizing to {stdscr.getmaxyx()}')
         self.max_y, self.max_x = stdscr.getmaxyx()
-        stdscr.clear()
-        for padid, pad in self.pads.items():
+        for pad_id, pad in self.pads.items():
             pad.resize(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
 
     def update_status(self, string):
@@ -49,7 +49,7 @@ class Window:
         for idx, line in enumerate(list(self.status_messages)):
             self.pads['status'].addstr(idx, 0, line)
 
-        self.pads['status'].update_pad()
+        self.pads['status'].update_draw()
 
     def update_debug(self, string):
         if not DEBUG_TEXT:
@@ -61,14 +61,14 @@ class Window:
 
         self.pads['debug'].update_pad()
 
-    def add_trainstr(self, pad, pos, delay, tid, location):
+    def _add_train_str(self, pad, pos, delay, tid, location):
         pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
 
     def update_delays(self, delays):
         self.pads['delay'].prepare()
 
         for idx, (tid, location, delay) in enumerate(delays):
-            self.add_trainstr(self.pads['delay'], idx, delay, tid, location)
+            self._add_train_str(self.pads['delay'], idx, delay, tid, location)
 
         self.pads['delay'].update_pad()
 
@@ -76,7 +76,7 @@ class Window:
         self.pads['early'].prepare()
 
         for idx, (tid, location, early) in enumerate(early):
-            self.add_trainstr(self.pads['early'], idx, early, tid, location)
+            self._add_train_str(self.pads['early'], idx, early, tid, location)
 
         self.pads['early'].update_pad()
 
@@ -84,14 +84,14 @@ class Window:
         self.pads['recent'].prepare()
 
         for idx, (tid, location, delay) in enumerate(list(recent)):
-            self.add_trainstr(self.pads['recent'], idx, delay, tid, location)
+            self._add_train_str(self.pads['recent'], idx, delay, tid, location)
 
         self.pads['recent'].update_pad()
 
     def update_recent_departed(self, removed_trains):
         self.pads['removed'].prepare()
         for idx, (tid, location, delay) in enumerate(removed_trains):
-            self.add_trainstr(self.pads['removed'], idx, delay, tid, location)
+            self._add_train_str(self.pads['removed'], idx, delay, tid, location)
 
         self.pads['removed'].update_pad()
 
@@ -101,8 +101,6 @@ class Window:
         idx = 0
         for contract in contracts:
             pad.addstr(idx, 0, contract.print_info(), ref=contract)
-            if idx == 0:
-                logging.info(f'   active: {contract.is_active()}')
             idx += 1
             for train_id, train in contract.trains.items():
                 color_pair = None
@@ -139,17 +137,17 @@ class Window:
         # Add the title and message text
         self.popup.addstr(0, 2, ' ' + title + ' ')
 
-        prevline = None
+        previous_line = None
         for idx, line in enumerate(message, start=3):
-            for pos, cellinfo in enumerate(line):
-                if cellinfo is not None:
-                    (text, color_pair_index) = cellinfo
+            for pos, cell_info in enumerate(line):
+                if cell_info is not None:
+                    (text, color_pair_index) = cell_info
                     self.popup.addstr(idx, 2 + pos * 14, text, curses.color_pair(color_pair_index))
                 else:
-                    if prevline is not None and prevline[pos] is not None:  # ACS_DARROW A_BLINK
+                    if previous_line is not None and previous_line[pos] is not None:  # ACS_DARROW A_BLINK
                         marker = '*'
                         self.popup.addstr(idx, 2 + pos * 14, f'{marker:>8}')
 
-            prevline = line
+            previous_line = line
         self.popup.refresh()
         return self.popup

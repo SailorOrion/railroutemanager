@@ -1,8 +1,8 @@
 import pytest
-from pad import Pad, Padsize
+from pad import Pad, PadSize
 
 def test_pad_create():
-    pad = Pad(100, 100, 'Test pad', Padsize(1, 1, 3, 3), color = False)
+    pad = Pad(100, 100, 'Test pad', PadSize(1, 1, 3, 3), color = False)
 
     pad.resize(50, 50, 3, 5)
 

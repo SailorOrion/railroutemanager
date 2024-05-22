@@ -86,15 +86,16 @@ class Contract:
                 self.route = train.locations()
                 self.line_leaders = [train_id, handled_routes[tuple_list]]
                 logging.debug(f"Closing route {self.cid}: {self.route}")
-                logging.debug(f"Closing route {self.cid} \
+                logging.info(f"Closing route {self.cid} \
                                 with lead train {self.line_leaders}: {self.route}")
                 self.route_complete = True
                 for train_id, train in self.trains.items():
                     train.finalize(self.end_of_route())
-                return
+                return True
             else:
                 logging.debug("Incomplete route")
                 handled_routes[tuple_list] = train_id
+                return False
 
     def update_route(self, tid):
         longest_route_length = self.length_of_route()
@@ -116,7 +117,8 @@ class Contract:
             for train_id, train in self.trains.items():
                 train.done = False
         if not self.route_complete:
-            self.check_for_complete_route(longest_route_length)
+            return self.check_for_complete_route(longest_route_length)
+        return False
 
     def repair_line_leader(self, train):
         logging.debug("Checking for route extension for {self.cid}")

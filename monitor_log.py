@@ -5,6 +5,7 @@ import curses
 import logging
 
 from datetime import timedelta
+from os import stat
 
 from contract import Contract
 from uniquedeque import UniqueDeque
@@ -54,7 +55,7 @@ def get_contract_id(train_id):
     raise ValueError
 
 
-def monitor_log(stdscr, filepath, historypath):
+def monitor_log(stdscr, filepath, history_path):
     curses.curs_set(0)  # Hide the cursor
     if curses.has_colors():
         curses.start_color()
@@ -62,56 +63,85 @@ def monitor_log(stdscr, filepath, historypath):
 
     current_file = open(filepath, "r")
     history_file = None
-    notify = False
-    if historypath != "":
-        history_file = open(historypath, "r")
+    if history_path != "":
+        history_file = open(history_path, "r")
     delays = {}
     early = {}
     contracts = {}
+    start_pos = 0
+    last_file_number = -1
+    current_file_number = stat(filepath).st_ino
     recent_delays = UniqueDeque(maxlen=12)
     recent_lines = UniqueDeque(maxlen=200)
     removed_trains = UniqueDeque(maxlen=200)
     w = Window(stdscr)
-    file = None
+
+    w.redraw_all()
+    if history_file is not None:
+        w.update_status(f"Reading {history_file}")
+        logging.info(f"Reading {history_file}")
+        try:
+            while True:
+                line = history_file.readline()
+
+                if line:
+                    process_log_line(contracts, delays, early, line, False, recent_delays, recent_lines,
+                                     removed_trains, w)
+                    start_pos, last_file_number = process_marker(line)
+                else:
+                    break
+
+        finally:
+            history_file.close()
+            history_file = open(history_path, "a")
+
+        logging.info("Ending history parsing")
+    update_pads(contracts, delays, early, recent_delays, removed_trains, w)
+    w.redraw_all()
 
     try:
+        logging.info(f"Old file: {last_file_number}, current file: {current_file_number}")
+        if last_file_number == current_file_number:
+            w.update_status(f"Reading {current_file} ({current_file_number}) from {start_pos}")
+            logging.info(f"Reading {current_file} from {start_pos}")
+            current_file.seek(start_pos, 0)
+        else:
+            w.update_status(f"New file detected! Reading {current_file}")
+            logging.info(f"New file detected! Reading {current_file}")
         while True:
+            line = current_file.readline()
+
             if history_file is not None:
-                if file != history_file:
-                    file = history_file
-                    logging.info(f"Reading {file}")
-                line = file.readline()
-            else:
-                if file != current_file:
-                    file = current_file
-                    logging.info(f"Reading {file}")
-                line = file.readline()
+                history_file.write(line)
+                history_file.flush()
 
             if line:
-                process_log_line(contracts, current_file, delays, early, file, line, notify, recent_delays,
-                                 recent_lines, removed_trains, w)
+                process_log_line(contracts, delays, early, line, True,
+                                 recent_delays, recent_lines, removed_trains, w)
             else:
                 time.sleep(0.02)
-                if history_file is not None:
-                    w.update_status("Ending history parsing")
-                    history_file.close()
-                    history_file = None
-                    update_pads(contracts, delays, early, recent_delays, removed_trains, w)
-                    w.redraw_all()
-                if file == current_file:
-                    notify = True
 
             if handle_input(stdscr, w):
                 break
 
     finally:
-        current_file.close()
         if history_file is not None:
+            filestat = stat(filepath)
+            history_file.write(f'last_read_position: {str(current_file.tell())} of {filestat.st_ino}\n')
             history_file.close()
+        current_file.close()
 
 
-def process_log_line(contracts, current_file, delays, early, file, line, notify, recent_delays, recent_lines,
-                     removed_trains, w):
+def process_marker(line):
+    match = re.search(r'last_read_position: (\d+) of (\d+)', line)
+    if match:
+        logging.info(f'Processing marker: {int(match.group(1))} file {int(match.group(2))}')
+        return int(match.group(1)), int(match.group(2))
+    else:
+        return 0, None
+
+
+def process_log_line(contracts, delays, early, line, update, recent_delays, recent_lines, removed_trains, w):
     parsed = parse_log_line(line)
     if parsed:
         train_id, location, delay = parsed
@@ -126,7 +156,7 @@ def process_log_line(contracts, current_file, delays, early, file, line, notify,
                 recent_delays.appendleft((train_id, location, delay))
                 delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
                 early.pop(train_id, None)
-                if delay > 120 and notify:
+                if delay > 120 and update:
                     notification.notify(title=f'{train_id} delayed',
                                         message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
             elif delay <= -120:
@@ -141,7 +171,7 @@ def process_log_line(contracts, current_file, delays, early, file, line, notify,
                 delays.pop(train_id, None)
                 early.pop(train_id, None)
 
-            if notify:
+            if update:
                 update_pads(contracts, delays, early, recent_delays, removed_trains, w)
                 if not w.has_popup():
                     w.redraw_all()
@@ -188,6 +218,8 @@ def handle_input(stdscr, w):
         w.pads['inactive_contract'].set_selection(-1)
     elif ch == ord('g'):
         w.pads['inactive_contract'].set_selection(+1)
+    elif ch == ord('!'):
+        w.redraw_all()
     elif ch == ord('x'):
         ref = w.pads['active_contract'].get_selection_reference()
         if isinstance(ref, Contract):
@@ -203,7 +235,9 @@ def handle_input(stdscr, w):
     elif ch == curses.KEY_NPAGE:
         w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_DOWN)
     elif ch == curses.KEY_RESIZE:
+        logging.info('Resizing screen')
         w.resize(stdscr)
+        w.redraw_all()
     return terminate
 
 
@@ -215,9 +249,9 @@ if __name__ == "__main__":
         print("Usage: python monitor_log.py <log file path>")
         sys.exit(1)
 
-    filepath = sys.argv[1]
+    filepath_arg = sys.argv[1]
     if len(sys.argv) == 3:
-        history_path = sys.argv[2]
+        history_path_arg = sys.argv[2]
     else:
-        history_path = ""
-    curses.wrapper(monitor_log, filepath, history_path)
+        history_path_arg = ""
+    curses.wrapper(monitor_log, filepath_arg, history_path_arg)
