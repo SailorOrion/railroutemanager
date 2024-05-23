@@ -62,11 +62,6 @@ class Pad:
         if self._right > curses.COLS or self._bottom > curses.LINES:
             raise ValueError
 
-        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
-        self._borderwin.box()
-        self._borderwin.addstr(0, 2, ' ' + self._desc + ' ', curses.A_REVERSE)
-        self._borderwin.refresh()
-
     def lines(self):
         if not self._contents.keys():
             return 0
@@ -120,6 +115,11 @@ class Pad:
             self._selected = -1
 
     def draw(self):
+        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
+        self._borderwin.box()
+        self._borderwin.addstr(0, 2, ' ' + self._desc + ' ', curses.A_REVERSE)
+        self._borderwin.refresh()
+
         d = self.draw_scrollbar()
 
         self._pad.refresh(self._display_first, 0, self._top + 1, self._left + 1, self._bottom - 2, self._right - 2 - d)

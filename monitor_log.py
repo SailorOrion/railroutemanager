@@ -185,7 +185,7 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
 def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
     w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
     w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
-    w.update_recent_delays(recent_delays)
+    w.update_recent_delays(list(recent_delays))
     w.update_recent_departed(removed_trains)
     w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
                        w.pads['inactive_contract'])
@@ -242,7 +242,7 @@ def handle_input(stdscr, w):
     return terminate
 
 
-logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":
     import sys

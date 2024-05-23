@@ -9,6 +9,7 @@ DEBUG_TEXT = True
 
 class Window:
     PAD_SIZE = 5000
+    PAD_WIDTH = 500
     NUM_ROWS = 13
     NUM_COLS = 2
 
@@ -20,21 +21,18 @@ class Window:
         self.stdscr = stdscr
         self.max_y, self.max_x = stdscr.getmaxyx()
 
-        full_width = self.max_x
-        half_width = self.max_x // 2
-
         Pad.set_size_params(self.max_y, self.max_x, self.NUM_ROWS, self.NUM_COLS)
 
-        self.pads['status'] = Pad(self.PAD_SIZE, full_width, "Status", PadSize(11, 0, 2, 2))
+        self.pads['status'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Status", PadSize(11, 0, 2, 2))
 
-        self.pads['delay'] = Pad(self.PAD_SIZE, half_width, "Train Delays (by delay)", PadSize(0, 0, 4, 1))
-        self.pads['removed'] = Pad(self.PAD_SIZE, half_width, "Recently finished trains:", PadSize(4, 0, 3, 1))
-        self.pads['early'] = Pad(self.PAD_SIZE, half_width, "Early trains:", PadSize(7, 0, 2, 1))
-        self.pads['recent'] = Pad(self.PAD_SIZE, half_width, "Recent delays:", PadSize(9, 0, 2, 1))
+        self.pads['delay'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Train Delays (by delay)", PadSize(0, 0, 4, 1))
+        self.pads['removed'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Recently finished trains:", PadSize(4, 0, 3, 1))
+        self.pads['early'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Early trains:", PadSize(7, 0, 2, 1))
+        self.pads['recent'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Recent delays:", PadSize(9, 0, 2, 1))
 
-        self.pads['active_contract'] = Pad(self.PAD_SIZE, half_width,
+        self.pads['active_contract'] = Pad(self.PAD_SIZE, self.PAD_WIDTH,
                                            "Active trains for contract and last seen location:", PadSize(0, 1, 7, 1))
-        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, half_width, "Contracts without active trains",
+        self.pads['inactive_contract'] = Pad(self.PAD_SIZE, self.PAD_WIDTH, "Contracts without active trains",
                                              PadSize(7, 1, 4, 1))
 
         self.resize(stdscr)
@@ -88,7 +86,7 @@ class Window:
     def update_recent_delays(self, recent):
         self.pads['recent'].prepare()
 
-        for idx, (tid, location, delay) in enumerate(list(recent)):
+        for idx, (tid, location, delay) in enumerate(recent):
             self._add_train_str(self.pads['recent'], idx, delay, tid, location)
 
         self.pads['recent'].update_pad()
