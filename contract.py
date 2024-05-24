@@ -43,6 +43,20 @@ class Contract:
     def is_active(self):
         return self.number_of_trains() > 0
 
+    def has_segments(self):
+        if len(self.cid) <= 3:
+            return False
+        if self.cid[3].isupper():
+            return True
+
+        raise ValueError
+
+    def get_first_segment(self):
+        if self.has_segments():
+            return self.cid[0:-1] + 'A'
+        else:
+            raise ValueError
+
     def make_train_detail(self, train):
         elems = [None] * (len(self.route) + 1)
         elems[0] = (f'{train.tid:>8}', 0)
