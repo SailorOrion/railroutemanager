@@ -1,5 +1,6 @@
 import logging
 
+from uniquedeque import UniqueDeque
 from train import Train
 
 
@@ -11,6 +12,7 @@ class Contract:
         self.line_leaders = []
         self.trains = {}
         self.completed_trains = {}
+        self.order = UniqueDeque(maxlen=10)
         self.route_complete = False
         self.w = window
 
@@ -60,7 +62,7 @@ class Contract:
     def make_train_detail(self, train):
         elems = [None] * (len(self.route) + 1)
         elems[0] = (f'{train.tid:>8}', 0)
-        logging.info(f'{train.tid}:{train.stops()}')
+        logging.debug(f'{train.tid}:{train.stops()}')
         start_of_route = self.route.index(train.first_location())
         # the +1 is for the title
         for idx, stop in enumerate(train.stops(), start=start_of_route + 1):
@@ -79,11 +81,10 @@ class Contract:
         titlerow = [(f'{title:22}', 0)]
         titlerow.extend([(f'{location:22}', 0) for location in self.route])
         rows.append(titlerow)
-        for tid, train in self.completed_trains.items():
-            if tid not in self.trains:
-                rows.append(self.make_train_detail(train))
-        for tid, train in self.trains.items():
-            rows.append(self.make_train_detail(train))
+        all_trains = self.completed_trains | self.trains
+        logging.info(f"Order of trains: {list(self.order)}")
+        for tid in list(reversed(list(self.order))):
+            rows.append(self.make_train_detail(all_trains[tid]))
         return f'Detail for contract {self.cid}', list(map(list, zip(*rows)))
 
     def check_for_complete_route(self, length):
@@ -149,6 +150,7 @@ class Contract:
         if tid not in self.trains:
             self.trains[tid] = Train(tid, location, delay)
             logging.debug(f"New train: {tid} at {location}")
+            self.order.appendleft(tid)
             if self.route_complete:
                 self.repair_line_leader(self.trains[tid])
                 if self.length_of_route() == 1:
