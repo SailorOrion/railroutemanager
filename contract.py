@@ -154,8 +154,32 @@ class Contract:
         logging.debug(f"Trains to remove: {trains_to_delete}")
         return [self.del_train(tid) for tid in trains_to_delete]
 
+    def get_delay_info(self):
+        delay_info = list("_" * 4)
+        for tid, t in self.completed_trains.items():
+            for stop in t.stops():
+                if stop.delay > 120:
+                    delay_info[0] = "!"
+                elif stop.delay > 60:
+                    delay_info[0] = "?"
+                elif stop.delay < -120:
+                    delay_info[1] = '*'
+                elif stop.delay < -60:
+                    delay_info[1] = '+'
+        for tid, t in self.trains.items():
+            for stop in t.stops():
+                if stop.delay > 120:
+                    delay_info[2] = "!"
+                elif stop.delay > 60:
+                    delay_info[2] = "?"
+                elif stop.delay < -120:
+                    delay_info[3] = '*'
+                elif stop.delay < -60:
+                    delay_info[3] = '+'
+        return ''.join(delay_info)
+
     def print_info(self):
-        return f'{"*" if not self.route_complete else " "}{self.cid:>4}: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
+        return f'{"*" if not self.route_complete else " "}{self.get_delay_info()}{self.cid:>5}: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
 
     def __str__(self):
         return f"Contract {self.cid}" + str(self.trains)
