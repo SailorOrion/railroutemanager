@@ -121,7 +121,7 @@ def monitor_log(stdscr, filepath, history_path):
             else:
                 time.sleep(0.02)
 
-            if handle_input(stdscr, w):
+            if handle_input(stdscr, w, contracts):
                 break
 
     finally:
@@ -193,7 +193,7 @@ def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
                        w.pads['active_contract'])
 
 
-def handle_input(stdscr, w):
+def handle_input(stdscr, w, contracts):
     terminate = False
     ch = stdscr.getch()
     if w.has_popup():
@@ -221,6 +221,11 @@ def handle_input(stdscr, w):
         w.pads['inactive_contract'].set_selection(+1)
     elif ch == ord('!'):
         w.redraw_all()
+    elif ch == ord('o'):
+        ret = w.open_view()
+        if ret:
+            title, contents = contracts[ret].make_detail_view()
+            w.detail_view(title, contents)
     elif ch == ord('x'):
         ref = w.pads['active_contract'].get_selection_reference()
         if isinstance(ref, Contract):

@@ -129,6 +129,40 @@ class Window:
         self.popup = None
         self.redraw_all()
 
+    def open_view(self):
+        # Create a new window for input
+        height, width = 3, 10  # Smaller window for the number input
+        start_y = (self.max_y - height) // 2
+        start_x = (self.max_x - width) // 2
+        self.popup = curses.newwin(height, width, start_y, start_x)
+        self.popup.box()
+
+        # Accept user input
+        string_input = ""
+        curses.echo()
+        while True:
+            self.popup.addstr(1, 1, string_input + ' ' * (width - len(string_input) - 2))  # Clear remaining line
+            self.popup.refresh()
+            key = self.popup.getch()
+
+            if key == 27:  # ESC key
+                curses.noecho()
+                self.popup.erase()
+                return None
+            elif key == 10:  # ENTER key
+                if (len(string_input) == 3 and string_input.isdigit()) or len(string_input) == 4 and string_input[0:2].isdigit() and string_input[3].isalpha():
+                    curses.noecho()
+                    self.popup.erase()
+                    self.popup.refresh()
+                    self.redraw_all()
+                    return string_input
+                else:
+                    self.popup.addstr(1, 1, "Err" + ' ' * (width - 4))
+            elif key in [curses.KEY_BACKSPACE, 127, 8]:  # Handle backspace
+                string_input = string_input[:-1]
+            elif len(string_input) < 4:
+                string_input += chr(key).upper()
+
     def detail_view(self, title, message):
         # Calculate the size and position of the window
         height, width = self.max_y - 10, self.max_x - 10
