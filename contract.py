@@ -62,8 +62,8 @@ class Contract:
     def make_detail_view(self):
         rows = []
         title = "Station"
-        titlerow = [(f'{title:22}', 0)]
-        titlerow.extend([(f'{location:22}', 0) for location in self.route])
+        titlerow = [(f'{title:14}', 0)]
+        titlerow.extend([(f'{location[0:14]:14}', 0) for location in self.route])
         rows.append(titlerow)
         for tid, train in self.completed_trains.items():
             if tid not in self.trains:

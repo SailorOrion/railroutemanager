@@ -223,7 +223,7 @@ def handle_input(stdscr, w, contracts):
         w.redraw_all()
     elif ch == ord('o'):
         ret = w.open_view()
-        if ret:
+        if ret and ret in contracts:
             title, contents = contracts[ret].make_detail_view()
             w.detail_view(title, contents)
     elif ch == ord('x'):

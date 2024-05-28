@@ -125,47 +125,45 @@ class Window:
         return self.popup is not None
 
     def destroy_popup(self):
-        self.popup.clear()
+        self.popup.erase()
         self.popup = None
         self.redraw_all()
 
     def open_view(self):
-        # Create a new window for input
-        height, width = 3, 10  # Smaller window for the number input
+        title = ' Open contract segment '
+        height, width = 6, len(title) + 4
         start_y = (self.max_y - height) // 2
         start_x = (self.max_x - width) // 2
         self.popup = curses.newwin(height, width, start_y, start_x)
         self.popup.box()
+        self.popup.addstr(0, 2, title)
 
-        # Accept user input
         string_input = ""
-        curses.echo()
         while True:
-            self.popup.addstr(1, 1, string_input + ' ' * (width - len(string_input) - 2))  # Clear remaining line
+            self.popup.addstr(2, 2, string_input + ' ' * (width - len(string_input) - 2))  # Clear remaining line
             self.popup.refresh()
             key = self.popup.getch()
 
-            if key == 27:  # ESC key
-                curses.noecho()
-                self.popup.erase()
+            if key == 27 or key == ord('q'):  # ESC key
+                self.destroy_popup()
                 return None
-            elif key == 10:  # ENTER key
+            elif key == curses.KEY_ENTER or key == 10:
                 if (len(string_input) == 3 and string_input.isdigit()) or len(string_input) == 4 and string_input[0:2].isdigit() and string_input[3].isalpha():
-                    curses.noecho()
-                    self.popup.erase()
-                    self.popup.refresh()
-                    self.redraw_all()
+                    self.destroy_popup()
                     return string_input
                 else:
-                    self.popup.addstr(1, 1, "Err" + ' ' * (width - 4))
+                    self.popup.addstr(2, 2, "Err" + ' ' * (width - 4))
+                    self.popup.refresh()
             elif key in [curses.KEY_BACKSPACE, 127, 8]:  # Handle backspace
                 string_input = string_input[:-1]
             elif len(string_input) < 4:
                 string_input += chr(key).upper()
 
     def detail_view(self, title, message):
+        cell_width = 14
         # Calculate the size and position of the window
-        height, width = self.max_y - 10, self.max_x - 10
+        height = len(message) + 8
+        width = len(message[0]) * cell_width + 6
         y, x = (curses.LINES - height) // 2, (curses.COLS - width) // 2
 
         self.popup = curses.newwin(height, width, y, x)  # Create a new window
@@ -179,11 +177,11 @@ class Window:
             for pos, cell_info in enumerate(line):
                 if cell_info is not None:
                     (text, color_pair_index) = cell_info
-                    self.popup.addstr(idx, 2 + pos * 14, text, curses.color_pair(color_pair_index))
+                    self.popup.addstr(idx, 3 + pos * cell_width, text, curses.color_pair(color_pair_index))
                 else:
                     if previous_line is not None and previous_line[pos] is not None:  # ACS_DARROW A_BLINK
                         marker = '*'
-                        self.popup.addstr(idx, 2 + pos * 14, f'{marker:>8}')
+                        self.popup.addstr(idx, 3 + pos * cell_width, f'{marker:>8}')
 
             previous_line = line
         self.popup.refresh()
