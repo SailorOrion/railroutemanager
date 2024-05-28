@@ -62,9 +62,9 @@ class Contract:
     def make_detail_view(self):
         rows = []
         title = "Station"
-        titlerow = [(f'{title:14}', 0)]
-        titlerow.extend([(f'{location[0:14]:14}', 0) for location in self.route])
-        rows.append(titlerow)
+        title_row = [(f'{title:14}', 0)]
+        title_row.extend([(f'{location[0:14]:14}', 0) for location in self.route])
+        rows.append(title_row)
         for tid, train in self.completed_trains.items():
             if tid not in self.trains:
                 rows.append(self.make_train_detail(train))
@@ -89,8 +89,8 @@ class Contract:
                 logging.info(f"Closing route {self.cid} \
                                 with lead train {self.line_leaders}: {self.route}")
                 self.route_complete = True
-                for train_id, train in self.trains.items():
-                    train.finalize(self.end_of_route())
+                for _, train_2 in self.trains.items():
+                    train_2.finalize(self.end_of_route())
                 return True
             else:
                 logging.debug("Incomplete route")
@@ -146,7 +146,6 @@ class Contract:
                 self.trains[tid].finalize(self.end_of_route())
         closed_route = self.update_route(tid)
 
-        self.trains[tid].is_done()
         return closed_route
 
     def purge_trains(self):

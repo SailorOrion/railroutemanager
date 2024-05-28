@@ -127,7 +127,7 @@ def monitor_log(stdscr, filepath, history_path):
     finally:
         if history_file is not None:
             filestat = stat(filepath)
-            history_file.write(f'last_read_position: {str(current_file.tell())} of {filestat.st_ino}\n')
+            history_file.write(f'last_read_position: {str(current_file.tell())} of {current_file_number}\n')
             history_file.close()
         current_file.close()
 

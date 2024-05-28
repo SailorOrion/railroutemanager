@@ -140,7 +140,7 @@ class Window:
 
         string_input = ""
         while True:
-            self.popup.addstr(2, 2, string_input + ' ' * (width - len(string_input) - 2))  # Clear remaining line
+            self.popup.addstr(2, 2, string_input + ' ' * (width - len(string_input) - 4))  # Clear remaining line
             self.popup.refresh()
             key = self.popup.getch()
 
