@@ -1,4 +1,5 @@
 import logging
+import datetime
 
 from train import Train
 
@@ -65,7 +66,7 @@ class Contract:
         title_row = [(f'{title:14}', 0)]
         title_row.extend([(f'{location[0:14]:14}', 0) for location in self.route])
         rows.append(title_row)
-        for tid, train in self.completed_trains.items():
+        for tid, train in sorted(self.completed_trains.items(), key=lambda t: t[1]._tob):
             if tid not in self.trains:
                 rows.append(self.make_train_detail(train))
         for tid, train in self.trains.items():
@@ -133,7 +134,7 @@ class Contract:
     def new_location_for_train(self, tid, location, delay):
         logging.debug(f"==== Arrival for contract {self.cid} ====")
         if tid not in self.trains:
-            self.trains[tid] = Train(tid, location, delay)
+            self.trains[tid] = Train(tid, location, delay, datetime.datetime.utcnow())
             logging.debug(f"New train: {tid} at {location}")
             if self.route_complete:
                 self.repair_line_leader(self.trains[tid])

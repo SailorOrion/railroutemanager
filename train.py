@@ -4,10 +4,11 @@ Stop = namedtuple("Stop", ["location", "delay"])
 
 
 class Train:
-    def __init__(self, train_id, location, delay):
+    def __init__(self, train_id, location, delay, tob):
         self.tid = train_id
         self._locations = []
         self._locations.append(Stop(location, delay))
+        self._tob = tob # time of birth
         self.done = False
 
     def __hash__(self):

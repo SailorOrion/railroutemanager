@@ -54,8 +54,10 @@ class DetailedPopup(Popup):
             previous_line = line
         self.popup.refresh()
 
+
 class OpenPopup(Popup):
     pass
+
 
 class Window:
     PAD_SIZE = 5000
