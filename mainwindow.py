@@ -1,11 +1,61 @@
 import curses
 import logging
 
+from abc import ABC, abstractmethod
 from collections import deque
 from pad import Pad, PadSize
 
+
 DEBUG_TEXT = True
 
+
+class Popup(ABC):
+    popup = None
+
+    def __init__(self, title, message):
+        self.draw(title, message)
+
+    @abstractmethod
+    def draw(self, title, message):
+        ...
+
+    def handle_input(self):
+        ...
+
+    def erase(self):
+        self.popup.erase()
+
+
+class DetailedPopup(Popup):
+    def draw(self, title, message):
+        cell_width = 14
+        # Calculate the size and position of the window
+        height = min(len(message) + 8, curses.LINES)
+        width = min(len(message[0]) * cell_width + 6, curses.COLS)
+        y, x = (curses.LINES - height) // 2, (curses.COLS - width) // 2
+
+        self.popup = curses.newwin(height, width, y, x)  # Create a new window
+        self.popup.box()  # Draw a box around the edges
+
+        # Add the title and message text
+        self.popup.addstr(0, 2, ' ' + title + ' ')
+
+        previous_line = None
+        for idx, line in enumerate(message, start=3):
+            for pos, cell_info in enumerate(line):
+                if cell_info is not None:
+                    (text, color_pair_index) = cell_info
+                    self.popup.addstr(idx, 3 + pos * cell_width, text, curses.color_pair(color_pair_index))
+                else:
+                    if previous_line is not None and previous_line[pos] is not None:  # ACS_DARROW A_BLINK
+                        marker = '*'
+                        self.popup.addstr(idx, 3 + pos * cell_width, f'{marker:>8}')
+
+            previous_line = line
+        self.popup.refresh()
+
+class OpenPopup(Popup):
+    pass
 
 class Window:
     PAD_SIZE = 5000
@@ -158,31 +208,3 @@ class Window:
                 string_input = string_input[:-1]
             elif len(string_input) < 4:
                 string_input += chr(key).upper()
-
-    def detail_view(self, title, message):
-        cell_width = 14
-        # Calculate the size and position of the window
-        height = len(message) + 8
-        width = len(message[0]) * cell_width + 6
-        y, x = (curses.LINES - height) // 2, (curses.COLS - width) // 2
-
-        self.popup = curses.newwin(height, width, y, x)  # Create a new window
-        self.popup.box()  # Draw a box around the edges
-
-        # Add the title and message text
-        self.popup.addstr(0, 2, ' ' + title + ' ')
-
-        previous_line = None
-        for idx, line in enumerate(message, start=3):
-            for pos, cell_info in enumerate(line):
-                if cell_info is not None:
-                    (text, color_pair_index) = cell_info
-                    self.popup.addstr(idx, 3 + pos * cell_width, text, curses.color_pair(color_pair_index))
-                else:
-                    if previous_line is not None and previous_line[pos] is not None:  # ACS_DARROW A_BLINK
-                        marker = '*'
-                        self.popup.addstr(idx, 3 + pos * cell_width, f'{marker:>8}')
-
-            previous_line = line
-        self.popup.refresh()
-        return self.popup

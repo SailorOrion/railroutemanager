@@ -9,7 +9,7 @@ from os import stat
 
 from contract import Contract
 from uniquedeque import UniqueDeque
-from mainwindow import Window
+from mainwindow import Window, DetailedPopup
 from pad import Pad
 from plyer import notification
 
@@ -126,7 +126,6 @@ def monitor_log(stdscr, filepath, history_path):
 
     finally:
         if history_file is not None:
-            filestat = stat(filepath)
             history_file.write(f'last_read_position: {str(current_file.tell())} of {current_file_number}\n')
             history_file.close()
         current_file.close()
@@ -225,17 +224,17 @@ def handle_input(stdscr, w, contracts):
         ret = w.open_view()
         if ret and ret in contracts:
             title, contents = contracts[ret].make_detail_view()
-            w.detail_view(title, contents)
+            w.popup = DetailedPopup(title, contents)
     elif ch == ord('x'):
         ref = w.pads['active_contract'].get_selection_reference()
         if isinstance(ref, Contract):
             title, contents = ref.make_detail_view()
-            w.detail_view(title, contents)
+            w.popup = DetailedPopup(title, contents)
     elif ch == ord('z'):
         ref = w.pads['inactive_contract'].get_selection_reference()
         if isinstance(ref, Contract):
             title, contents = ref.make_detail_view()
-            w.detail_view(title, contents)
+            w.popup = DetailedPopup(title, contents)
     elif ch == curses.KEY_PPAGE:
         w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
     elif ch == curses.KEY_NPAGE:
