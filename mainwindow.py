@@ -6,9 +6,6 @@ from collections import deque
 from pad import Pad, PadSize
 
 
-DEBUG_TEXT = True
-
-
 class Popup(ABC):
     popup = None
 
@@ -106,51 +103,21 @@ class Window:
 
         self.pads['status'].update_draw()
 
-    def update_debug(self, string):
-        if not DEBUG_TEXT:
-            return
-        self.debug_messages.appendleft(string)
-        self.pads['debug'].prepare()
-        for idx, line in enumerate(list(self.debug_messages)):
-            self.pads['debug'].addstr(idx, 0, line)
-
-        self.pads['debug'].update_draw()
-
-    def _add_train_str(self, pad, pos, delay, tid, location):
+    @staticmethod
+    def _add_train_str(pad, pos, delay, tid, location):
         pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
 
-    def update_delays(self, delays):
-        self.pads['delay'].prepare()
+    @classmethod
+    def update_pad(cls, iterable, pad):
+        pad.prepare()
 
-        for idx, (tid, location, delay) in enumerate(delays):
-            self._add_train_str(self.pads['delay'], idx, delay, tid, location)
+        for idx, train in enumerate(iterable):
+            cls._add_train_str(pad, idx, train.current_delay(), train.tid, train.current_location())
 
-        self.pads['delay'].update_pad()
+        pad.update_pad()
 
-    def update_early_trains(self, early):
-        self.pads['early'].prepare()
-
-        for idx, (tid, location, early) in enumerate(early):
-            self._add_train_str(self.pads['early'], idx, early, tid, location)
-
-        self.pads['early'].update_pad()
-
-    def update_recent_delays(self, recent):
-        self.pads['recent'].prepare()
-
-        for idx, (tid, location, delay) in enumerate(recent):
-            self._add_train_str(self.pads['recent'], idx, delay, tid, location)
-
-        self.pads['recent'].update_pad()
-
-    def update_recent_departed(self, removed_trains):
-        self.pads['removed'].prepare()
-        for idx, (tid, location, delay) in enumerate(removed_trains):
-            self._add_train_str(self.pads['removed'], idx, delay, tid, location)
-
-        self.pads['removed'].update_pad()
-
-    def update_contracts(self, contracts, pad):
+    @staticmethod
+    def update_contract_pad(contracts, pad):
         pad.prepare()
 
         idx = 0
@@ -200,7 +167,8 @@ class Window:
                 self.destroy_popup()
                 return None
             elif key == curses.KEY_ENTER or key == 10:
-                if (len(string_input) == 3 and string_input.isdigit()) or len(string_input) == 4 and string_input[0:2].isdigit() and string_input[3].isalpha():
+                if ((len(string_input) == 3 and string_input.isdigit())
+                        or len(string_input) == 4 and string_input[0:2].isdigit() and string_input[3].isalpha()):
                     self.destroy_popup()
                     return string_input
                 else:

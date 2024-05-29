@@ -1,14 +1,15 @@
 from collections import namedtuple
+from datetime import datetime
 
 Stop = namedtuple("Stop", ["location", "delay"])
 
 
 class Train:
-    def __init__(self, train_id, location, delay, tob):
+    def __init__(self, train_id, location, delay):
         self.tid = train_id
         self._locations = []
         self._locations.append(Stop(location, delay))
-        self._tob = tob # time of birth
+        self._tob = datetime.utcnow()  # time of birth
         self.done = False
 
     def __hash__(self):
@@ -46,13 +47,17 @@ class Train:
     def current_delay(self):
         return self._locations[-1].delay
 
+    def time_of_birth(self):
+        return self._tob
+
     def print_info(self):
         if self.num_locations() == 1:
             return f"| {self.current_delay():4.0f} | {self.current_location()}->?"
         elif self.num_locations() == 2:
             return f"| {self.current_delay():4.0f} | {self.previous_location()}->{self.current_location()}"
         else:
-            return f"| {self.current_delay():4.0f} | {self.first_location()}--->{self.previous_location()}->{self.current_location()}"
+            return f"| {self.current_delay():4.0f} | "\
+                   + f"{self.first_location()}--->{self.previous_location()}->{self.current_location()}"
 
     def finalize(self, terminus):
         if self.current_location() == terminus:

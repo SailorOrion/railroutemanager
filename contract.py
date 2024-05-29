@@ -1,5 +1,4 @@
 import logging
-import datetime
 
 from train import Train
 
@@ -41,10 +40,10 @@ class Contract:
     def number_of_trains(self):
         return len(self.trains)
 
-    def is_active(self):
+    def is_active(self) -> bool:
         return self.number_of_trains() > 0
 
-    def make_train_detail(self, train):
+    def make_train_detail(self, train) -> list:
         elems = [None] * (len(self.route) + 1)
         elems[0] = (f'{train.tid:>8}', 0)
         logging.info(f'{train.tid}:{train.stops()}')
@@ -66,14 +65,14 @@ class Contract:
         title_row = [(f'{title:14}', 0)]
         title_row.extend([(f'{location[0:14]:14}', 0) for location in self.route])
         rows.append(title_row)
-        for tid, train in sorted(self.completed_trains.items(), key=lambda t: t[1]._tob):
-            if tid not in self.trains:
+        for train in sorted(self.completed_trains.values(), key=lambda t: t.time_of_birth()):
+            if train.tid not in self.trains:
                 rows.append(self.make_train_detail(train))
         for tid, train in self.trains.items():
             rows.append(self.make_train_detail(train))
         return f'Detail for contract {self.cid}', list(map(list, zip(*rows)))
 
-    def check_for_complete_route(self, length):
+    def check_for_complete_route(self, length) -> bool:
         handled_routes = {}
         logging.debug(f"Checking route completion: {len(self.trains)} trains: {[train.tid for train in self.trains.values()]}")
         for train_id, train in self.trains.items():
@@ -98,7 +97,7 @@ class Contract:
                 handled_routes[tuple_list] = train_id
         return False
 
-    def update_route(self, tid):
+    def update_route(self, tid) -> bool:
         longest_route_length = self.length_of_route()
         logging.debug("---- route update ----")
         logging.debug(f"Processing route update for {tid}:")
@@ -131,10 +130,10 @@ class Contract:
             train.new_location(new_location, new_delay)
             logging.debug(f"New route for train: {train.locations()}")
 
-    def new_location_for_train(self, tid, location, delay):
+    def new_location_for_train(self, tid, location, delay) -> bool:
         logging.debug(f"==== Arrival for contract {self.cid} ====")
         if tid not in self.trains:
-            self.trains[tid] = Train(tid, location, delay, datetime.datetime.utcnow())
+            self.trains[tid] = Train(tid, location, delay)
             logging.debug(f"New train: {tid} at {location}")
             if self.route_complete:
                 self.repair_line_leader(self.trains[tid])
@@ -149,12 +148,12 @@ class Contract:
 
         return closed_route
 
-    def purge_trains(self):
+    def purge_trains(self) -> list:
         trains_to_delete = [tid for tid, t in self.trains.items() if t.done]
         logging.debug(f"Trains to remove: {trains_to_delete}")
         return [self.del_train(tid) for tid in trains_to_delete]
 
-    def get_delay_info(self):
+    def get_delay_info(self) -> str:
         delay_info = list("_" * 4)
         for tid, t in self.completed_trains.items():
             for stop in t.stops():
@@ -178,8 +177,8 @@ class Contract:
                     delay_info[3] = '+'
         return ''.join(delay_info)
 
-    def print_info(self):
+    def print_info(self) -> str:
         return f'{"*" if not self.route_complete else " "}{self.get_delay_info()}{self.cid:>5}: {self.start_of_route()}--{len(self.route)}-->{self.end_of_route()}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Contract {self.cid}" + str(self.trains)

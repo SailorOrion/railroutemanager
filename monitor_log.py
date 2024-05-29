@@ -8,6 +8,7 @@ from datetime import timedelta
 from os import stat
 
 from contract import Contract
+from train import Train
 from uniquedeque import UniqueDeque
 from mainwindow import Window, DetailedPopup
 from pad import Pad
@@ -71,9 +72,9 @@ def monitor_log(stdscr, filepath, history_path):
     start_pos = 0
     last_file_number = -1
     current_file_number = stat(filepath).st_ino
-    recent_delays = UniqueDeque(maxlen=12)
-    recent_lines = UniqueDeque(maxlen=200)
-    removed_trains = UniqueDeque(maxlen=200)
+    recent_delays = UniqueDeque(max_length=12)
+    recent_lines = UniqueDeque(max_length=200)
+    removed_trains = UniqueDeque(max_length=200)
     w = Window(stdscr)
 
     w.redraw_all()
@@ -144,7 +145,8 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
     parsed = parse_log_line(line)
     if parsed:
         train_id, location, delay = parsed
-        if recent_lines.appendleft((train_id, location, delay)):
+        train = Train(train_id, location, delay)
+        if recent_lines.append_left((train_id, location, delay)):
             contract_type, contract_id = get_contract_id(train_id)
             if contract_id not in contracts:
                 contracts[contract_id] = Contract(contract_id, contract_type, w)
@@ -153,21 +155,24 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
                 w.update_status(f'Closed route {contract_id}')
 
             if delay > 60:
-                recent_delays.appendleft((train_id, location, delay))
-                delays[train_id] = (train_id, location, delay)  # Update the existing ID or add a new one
+                recent_delays.append_left(train)
+                delays[train_id] = train
                 early.pop(train_id, None)
                 if delay > 120 and update:
                     notification.notify(title=f'{train_id} delayed',
                                         message=f'{train_id} delayed at {location:16} by {delay}', timeout=10)
             elif delay <= -120:
-                early[train_id] = (train_id, location, delay)
+                early[train_id] = train
                 delays.pop(train_id, None)
             else:
                 delays.pop(train_id, None)
                 early.pop(train_id, None)
 
-            for train in contracts[contract_id].purge_trains():
-                removed_trains.appendleft((train.tid, train.current_location(), train.current_delay()))
+            for purged_trains in contracts[contract_id].purge_trains():
+                if purged_trains.current_delay() > 60 or purged_trains.current_delay() < -60:
+                    removed_trains.append_left(purged_trains)
+                else:
+                    removed_trains.remove(purged_trains)
                 delays.pop(train_id, None)
                 early.pop(train_id, None)
 
@@ -182,14 +187,15 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
 
 
 def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
-    w.update_delays(sorted(delays.values(), key=lambda x: x[2], reverse=True))
-    w.update_early_trains(sorted(early.values(), key=lambda x: x[2], reverse=False))
-    w.update_recent_delays(list(recent_delays))
-    w.update_recent_departed(removed_trains)
-    w.update_contracts([c for cid, c in sorted(contracts.items()) if not c.is_active()],
-                       w.pads['inactive_contract'])
-    w.update_contracts([c for cid, c in sorted(contracts.items()) if c.is_active()],
-                       w.pads['active_contract'])
+    w.update_pad(sorted(delays.values(), key=lambda t: t.current_delay(), reverse=True), w.pads['delay'])
+
+    w.update_pad(sorted(early.values(), key=lambda t: t.current_delay(), reverse=True), w.pads['early'])
+    w.update_pad(list(recent_delays), w.pads['recent'])
+    w.update_pad(removed_trains, w.pads['removed'])
+    w.update_contract_pad([c for cid, c in sorted(contracts.items()) if not c.is_active()],
+                          w.pads['inactive_contract'])
+    w.update_contract_pad([c for cid, c in sorted(contracts.items()) if c.is_active()],
+                          w.pads['active_contract'])
 
 
 def handle_input(stdscr, w, contracts):
@@ -220,7 +226,7 @@ def handle_input(stdscr, w, contracts):
         w.pads['inactive_contract'].set_selection(+1)
     elif ch == ord('!'):
         w.redraw_all()
-    elif ch == ord('o'):
+    elif ch == ord('o') or ch == ord('i'):
         ret = w.open_view()
         if ret and ret in contracts:
             title, contents = contracts[ret].make_detail_view()
