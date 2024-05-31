@@ -10,7 +10,7 @@ from os import stat
 from contract import Contract
 from train import Train
 from uniquedeque import UniqueDeque
-from mainwindow import Window, DetailedPopup
+from mainwindow import Window, DetailedPopup, OpenPopup
 from pad import Pad
 from plyer import notification
 
@@ -77,7 +77,7 @@ def monitor_log(stdscr, filepath, history_path):
     removed_trains = UniqueDeque(max_length=200)
     w = Window(stdscr)
 
-    w.redraw_all()
+    w.redraw_pads()
     if history_file is not None:
         w.update_status(f"Reading {history_file}")
         logging.info(f"Reading {history_file}")
@@ -98,7 +98,7 @@ def monitor_log(stdscr, filepath, history_path):
 
         logging.info("Ending history parsing")
     update_pads(contracts, delays, early, recent_delays, removed_trains, w)
-    w.redraw_all()
+    w.redraw_pads()
 
     try:
         logging.info(f"Old file: {last_file_number}, current file: {current_file_number}")
@@ -179,7 +179,7 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
             if update:
                 update_pads(contracts, delays, early, recent_delays, removed_trains, w)
                 if not w.has_popup():
-                    w.redraw_all()
+                    w.redraw_pads()
     else:
         tid = parse_bad_platform(line)
         if tid:
@@ -198,24 +198,30 @@ def update_pads(contracts, delays, early, recent_delays, removed_trains, w):
                           w.pads['active_contract'])
 
 
-def handle_input(stdscr, w, contracts):
+def handle_input(stdscr, w, contracts) -> bool:
     terminate = False
     ch = stdscr.getch()
     if w.has_popup():
-        if ch == ord('q'):
-            w.destroy_popup()
-            w.redraw_all()
-        return
+        ret = w.popup.handle_input(w, ch)
+        if isinstance(w.popup, OpenPopup):
+            if ret:
+                if ret in contracts:
+                    title, contents = contracts[ret].make_detail_view()
+                    w.destroy_popup()
+                    w.popup = DetailedPopup(title, contents)
+                else:
+                    w.destroy_popup()
+        return False
     if ch == ord('q'):  # Exit loop if 'q' is pressed
         terminate = True
     elif ch == ord('w'):
-        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
+        w.pads['active_contract'].update_display_position(Pad.ScrollMode.LINE_UP)
     elif ch == ord('s'):
-        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
+        w.pads['active_contract'].update_display_position(Pad.ScrollMode.LINE_DOWN)
     elif ch == ord('e'):
-        w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_UP)
+        w.pads['inactive_contract'].update_display_position(Pad.ScrollMode.LINE_UP)
     elif ch == ord('d'):
-        w.pads['inactive_contract'].update_displaypos(Pad.ScrollMode.LINE_DOWN)
+        w.pads['inactive_contract'].update_display_position(Pad.ScrollMode.LINE_DOWN)
     elif ch == ord('r'):
         w.pads['active_contract'].set_selection(-1)
     elif ch == ord('f'):
@@ -225,12 +231,9 @@ def handle_input(stdscr, w, contracts):
     elif ch == ord('g'):
         w.pads['inactive_contract'].set_selection(+1)
     elif ch == ord('!'):
-        w.redraw_all()
+        w.redraw_pads()
     elif ch == ord('o') or ch == ord('i'):
-        ret = w.open_view()
-        if ret and ret in contracts:
-            title, contents = contracts[ret].make_detail_view()
-            w.popup = DetailedPopup(title, contents)
+        w.popup = OpenPopup()
     elif ch == ord('x'):
         ref = w.pads['active_contract'].get_selection_reference()
         if isinstance(ref, Contract):
@@ -242,13 +245,13 @@ def handle_input(stdscr, w, contracts):
             title, contents = ref.make_detail_view()
             w.popup = DetailedPopup(title, contents)
     elif ch == curses.KEY_PPAGE:
-        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_UP)
+        w.pads['active_contract'].update_display_position(Pad.ScrollMode.PAGE_UP)
     elif ch == curses.KEY_NPAGE:
-        w.pads['active_contract'].update_displaypos(Pad.ScrollMode.PAGE_DOWN)
+        w.pads['active_contract'].update_display_position(Pad.ScrollMode.PAGE_DOWN)
     elif ch == curses.KEY_RESIZE:
         logging.info('Resizing screen')
         w.resize(stdscr)
-        w.redraw_all()
+        w.redraw_pads()
     return terminate
 
 

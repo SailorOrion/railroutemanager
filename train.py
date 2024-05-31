@@ -21,7 +21,7 @@ class Train:
     def locations(self):
         return [L.location for L in self._locations]
 
-    def stops(self):
+    def stops(self) -> list:
         return self._locations
 
     def set_route(self, route):

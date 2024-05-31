@@ -9,15 +9,27 @@ from pad import Pad, PadSize
 class Popup(ABC):
     popup = None
 
-    def __init__(self, title, message):
+    def __init__(self, title=None, message=None):
+        self.title = title
+        self.message = message
+        self.rows = 0
+        self.cols = 0
+        self.row = 0
+        self.col = 0
         self.draw(title, message)
 
     @abstractmethod
     def draw(self, title, message):
         ...
 
-    def handle_input(self):
-        ...
+    @staticmethod
+    def handle_input(window, char):
+        if char == ord('q') or char == 27:
+            # Here's the deal: char 27 may be ESC or ALT+something.
+            # If there's no next char, it's ESC.
+            window.popup = None
+            window.redraw_pads()
+        return None
 
     def erase(self):
         self.popup.erase()
@@ -27,11 +39,11 @@ class DetailedPopup(Popup):
     def draw(self, title, message):
         cell_width = 14
         # Calculate the size and position of the window
-        height = min(len(message) + 8, curses.LINES)
-        width = min(len(message[0]) * cell_width + 6, curses.COLS)
-        y, x = (curses.LINES - height) // 2, (curses.COLS - width) // 2
+        self.rows = min(len(message) + 8, curses.LINES)
+        self.cols = min(len(message[0]) * cell_width + 6, curses.COLS)
+        self.row, self.col = (curses.LINES - self.rows) // 2, (curses.COLS - self.cols) // 2
 
-        self.popup = curses.newwin(height, width, y, x)  # Create a new window
+        self.popup = curses.newwin(self.rows, self.cols, self.row, self.col)
         self.popup.box()  # Draw a box around the edges
 
         # Add the title and message text
@@ -51,9 +63,45 @@ class DetailedPopup(Popup):
             previous_line = line
         self.popup.refresh()
 
+    def handle_input(self, window, char) -> bool:
+        if super().handle_input(window, char):
+            return True
+        return False
+
 
 class OpenPopup(Popup):
-    pass
+    def __init__(self):
+        self._string_input = ""
+        self.title = ' Open contract segment '
+        super().__init__(title=self.title)
+
+    def draw(self, title, message):
+        self.title = ' Open contract segment '
+        self.rows, self.cols = 6, len(title) + 4
+        self.row = (curses.LINES - self.rows) // 2
+        self.col = (curses.COLS - self.cols) // 2
+        self.popup = curses.newwin(self.rows, self.cols, self.row, self.col)
+        self.popup.box()
+        self.popup.addstr(0, 2, title)
+
+        self.popup.addstr(2, 2, self._string_input + ' ' * (self.cols - len(self._string_input) - 4))
+        self.popup.refresh()
+
+    def handle_input(self, window, char):
+        if char == curses.KEY_ENTER or char == 10:
+            if (len(self._string_input) == 3 and self._string_input.isdigit()) or len(self._string_input) == 4 and self._string_input[0:2].isdigit() and self._string_input[3].isalpha():
+                return self._string_input
+            else:
+                self.popup.addstr(2, 2, "Err" + ' ' * (self.cols - 4))
+                self.popup.refresh()
+        elif char == -1:
+            return None
+        elif char in [curses.KEY_BACKSPACE, 127, 8]:  # Handle backspace
+            self._string_input = self._string_input[:-1]
+        elif len(self._string_input) < 4:
+            self._string_input += chr(char).upper()
+        self.draw(self.title, "")
+        return None
 
 
 class Window:
@@ -99,13 +147,13 @@ class Window:
         self.status_messages.appendleft(string)
         self.pads['status'].prepare()
         for idx, line in enumerate(list(self.status_messages)):
-            self.pads['status'].addstr(idx, 0, line)
+            self.pads['status'].add_str(idx, 0, line)
 
         self.pads['status'].update_draw()
 
     @staticmethod
     def _add_train_str(pad, pos, delay, tid, location):
-        pad.addstr(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
+        pad.add_str(pos, 0, '{:8}: {:12s} at {}'.format(delay, tid, location))
 
     @classmethod
     def update_pad(cls, iterable, pad):
@@ -122,7 +170,7 @@ class Window:
 
         idx = 0
         for contract in contracts:
-            pad.addstr(idx, 0, contract.print_info(), ref=contract)
+            pad.add_str(idx, 0, contract.print_info(), ref=contract)
             idx += 1
             for train_id, train in contract.trains.items():
                 color_pair = None
@@ -130,13 +178,13 @@ class Window:
                     color_pair = curses.color_pair(2)
                 elif train.current_delay() >= 60:
                     color_pair = curses.color_pair(1)
-                pad.addstr(idx, 4, train_id, color_pair=color_pair)
-                pad.addstr(idx, 13, train.print_info(), ref=train)
+                pad.add_str(idx, 4, train_id, color_pair=color_pair)
+                pad.add_str(idx, 13, train.print_info(), ref=train)
                 idx += 1
 
         pad.update_pad()
 
-    def redraw_all(self):
+    def redraw_pads(self):
         for _, pad in self.pads.items():
             pad.draw()
 
@@ -146,35 +194,4 @@ class Window:
     def destroy_popup(self):
         self.popup.erase()
         self.popup = None
-        self.redraw_all()
-
-    def open_view(self):
-        title = ' Open contract segment '
-        height, width = 6, len(title) + 4
-        start_y = (self.max_y - height) // 2
-        start_x = (self.max_x - width) // 2
-        self.popup = curses.newwin(height, width, start_y, start_x)
-        self.popup.box()
-        self.popup.addstr(0, 2, title)
-
-        string_input = ""
-        while True:
-            self.popup.addstr(2, 2, string_input + ' ' * (width - len(string_input) - 4))  # Clear remaining line
-            self.popup.refresh()
-            key = self.popup.getch()
-
-            if key == 27 or key == ord('q'):  # ESC key
-                self.destroy_popup()
-                return None
-            elif key == curses.KEY_ENTER or key == 10:
-                if ((len(string_input) == 3 and string_input.isdigit())
-                        or len(string_input) == 4 and string_input[0:2].isdigit() and string_input[3].isalpha()):
-                    self.destroy_popup()
-                    return string_input
-                else:
-                    self.popup.addstr(2, 2, "Err" + ' ' * (width - 4))
-                    self.popup.refresh()
-            elif key in [curses.KEY_BACKSPACE, 127, 8]:  # Handle backspace
-                string_input = string_input[:-1]
-            elif len(string_input) < 4:
-                string_input += chr(key).upper()
+        self.redraw_pads()

@@ -38,7 +38,7 @@ class Pad:
         self._bottom = None
         self._left = None
         self._right = None
-        self._borderwin = None
+        self._border_window = None
 
         self._display_first = 0
         self._selected = -1
@@ -54,10 +54,10 @@ class Pad:
 
     def resize(self):
         self._top = int(self._max_y * self._pad_size.start_row / self._num_rows)
-        self._bottom = int((self._max_y * self._pad_size.rows + self._max_y * self._pad_size.start_row) / self._num_rows)
+        self._bottom = int((self._max_y * (self._pad_size.rows + self._pad_size.start_row)) / self._num_rows)
 
         self._left = int(self._max_x * self._pad_size.start_column / self._num_columns)
-        self._right = int((self._max_x * self._pad_size.columns + self._max_x * self._pad_size.start_column) / self._num_columns)
+        self._right = int((self._max_x * (self._pad_size.columns + self._pad_size.start_column)) / self._num_columns)
         self.log_info(f'Resized pad to {self._top}, {self._bottom}, {self._left}, {self._right}')
         if self._right > curses.COLS or self._bottom > curses.LINES:
             raise ValueError
@@ -72,19 +72,19 @@ class Pad:
         # Calculate scrollbar slider properties
         if self.lines() > self.content_height():
             scrollbar_height = max(ceil((self.content_height() / self.lines()) * self.content_height()), 1)
-            scrollbar_pos = int(
-                self._display_first / (self.lines() - self.content_height()) * (self.content_height() - scrollbar_height))
+            scrollbar_pos = int(self._display_first /
+                                (self.lines() - self.content_height()) * (self.content_height() - scrollbar_height))
         else:
             for y in range(self.content_height()):
-                self._borderwin.addch(y + 1, self.width() - 2, ' ')
+                self._border_window.addch(y + 1, self.width() - 2, ' ')
             return 0
 
         # Draw the scrollbar
         for y in range(self.content_height()):
             if scrollbar_pos <= y < scrollbar_pos + scrollbar_height:
-                self._borderwin.addch(y + 1, self.width() - 2, curses.ACS_CKBOARD)
+                self._border_window.addch(y + 1, self.width() - 2, curses.ACS_CKBOARD)
             else:
-                self._borderwin.addch(y + 1, self.width() - 2, ' ')
+                self._border_window.addch(y + 1, self.width() - 2, ' ')
 
         return 1
 
@@ -115,10 +115,10 @@ class Pad:
             self._selected = -1
 
     def draw(self):
-        self._borderwin = curses.newwin(self.height(), self.width(), self._top, self._left)
-        self._borderwin.box()
-        self._borderwin.addstr(0, 2, ' ' + self._desc + ' ', curses.A_REVERSE)
-        self._borderwin.refresh()
+        self._border_window = curses.newwin(self.height(), self.width(), self._top, self._left)
+        self._border_window.box()
+        self._border_window.addstr(0, 2, ' ' + self._desc + ' ', curses.A_REVERSE)
+        self._border_window.refresh()
 
         d = self.draw_scrollbar()
 
@@ -147,7 +147,7 @@ class Pad:
             return None
         return self._contents[self._selected]['reference']
 
-    def update_displaypos(self, mode):
+    def update_display_position(self, mode):
         match mode:
             case self.ScrollMode.LINE_UP:
                 self._display_first -= 1
@@ -167,7 +167,7 @@ class Pad:
         self._contents.clear()
         self._pad.erase()
 
-    def addstr(self, y_pos, x_pos, line, ref=None, color_pair=None):
+    def add_str(self, y_pos, x_pos, line, ref=None, color_pair=None):
         if y_pos not in self._contents:
             self._contents[y_pos] = {}
         if 'elements' not in self._contents[y_pos]:
