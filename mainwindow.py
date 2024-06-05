@@ -89,7 +89,10 @@ class OpenPopup(Popup):
 
     def handle_input(self, window, char):
         if char == curses.KEY_ENTER or char == 10:
-            if (len(self._string_input) == 3 and self._string_input.isdigit()) or len(self._string_input) == 4 and self._string_input[0:2].isdigit() and self._string_input[3].isalpha():
+            if ((len(self._string_input) == 3 and self._string_input.isdigit())
+                    or len(self._string_input) == 4
+                    and self._string_input[0:2].isdigit()
+                    and self._string_input[3].isalpha()):
                 return self._string_input
             else:
                 self.popup.addstr(2, 2, "Err" + ' ' * (self.cols - 4))

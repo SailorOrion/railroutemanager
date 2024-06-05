@@ -173,8 +173,8 @@ def process_log_line(contracts, delays, early, line, update, recent_delays, rece
                     removed_trains.append_left(purged_trains)
                 else:
                     removed_trains.remove(purged_trains)
-                delays.pop(train_id, None)
-                early.pop(train_id, None)
+                delays.pop(purged_trains.tid, None)
+                early.pop(purged_trains.tid, None)
 
             if update:
                 update_pads(contracts, delays, early, recent_delays, removed_trains, w)
