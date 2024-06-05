@@ -68,7 +68,7 @@ class Contract:
         for train in sorted(self.completed_trains.values(), key=lambda t: t.time_of_birth()):
             if train.tid not in self.trains:
                 rows.append(self.make_train_detail(train))
-        for tid, train in self.trains.items():
+        for train in sorted(self.trains.values(), key=lambda t: t.time_of_birth()):
             rows.append(self.make_train_detail(train))
         return f'Detail for contract {self.cid}', list(map(list, zip(*rows)))
 
